@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16
+    container_name: backtestlab-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: backtestlab
+      POSTGRES_PASSWORD: backtestlab
+      POSTGRES_DB: backtestlab
+    ports:
+      - "5432:5432"
+    volumes:
+      - backtestlab_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U backtestlab -d backtestlab"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  backtestlab_pgdata:

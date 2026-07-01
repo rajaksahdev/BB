@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(try { $h = Invoke-RestMethod \"http://127.0.0.1:8000/health\" -TimeoutSec 3; Write-Output \"health: $\\($h.status\\)\" } catch { Write-Output \"NOT UP: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(Start-Process \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\"; \"Launching Docker Desktop...\")",
+      "PowerShell(& \"d:\\\\sahdev works\\\\BB\\\\backend\\\\.venv\\\\Scripts\\\\Activate.ps1\"; Set-Location \"d:\\\\sahdev works\\\\BB\\\\backend\"; Start-Process -FilePath \".venv\\\\Scripts\\\\python.exe\" -ArgumentList \"-m\",\"uvicorn\",\"app.main:app\",\"--port\",\"8000\" -WindowStyle Hidden; Set-Location \"d:\\\\sahdev works\\\\BB\\\\frontend\"; Start-Process -FilePath \"npm.cmd\" -ArgumentList \"run\",\"dev\",\"--\",\"--port\",\"5173\" -WindowStyle Hidden; \"started backend + vite, waiting...\"; Start-Sleep -Seconds 8; \"--- vite dev server ---\"; try { $h=\\(Invoke-WebRequest \"http://localhost:5173/\" -UseBasicParsing\\); \"vite HTTP \" + $h.StatusCode } catch { \"vite err: \" + $_.Exception.Message }; \"--- api via 127.0.0.1:8000 ---\"; try { \\(Invoke-WebRequest \"http://127.0.0.1:8000/health\" -UseBasicParsing\\).Content } catch { \"api err: \" + $_.Exception.Message })",
+      "Bash(npm run *)",
+      "Bash(./.venv/Scripts/python.exe -m pytest -q)",
+      "PowerShell(Start-Process \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\"; Write-Output \"launched\")",
+      "Bash(./.venv/Scripts/python.exe -m pytest)",
+      "Bash(git --version)",
+      "Bash(git rev-parse *)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(grep -E '\\(\\\\.env$|\\\\.venv/|node_modules/|/dist/\\)')"
+    ]
+  }
+}
