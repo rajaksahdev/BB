@@ -17,6 +17,9 @@ import pytest
 
 # --- Must happen before importing any app module ---------------------------
 os.environ["AUTH_DEV_MODE"] = "true"
+# Don't let the /backtest rate limiter throttle the suite (all TestClient calls
+# share one client IP). Rate-limit behavior is covered by a focused unit test.
+os.environ["BACKTEST_RATE_LIMIT"] = "100000"
 # Ensure billing is OFF by default (individual tests opt in via monkeypatch).
 for _k in ("STRIPE_SECRET_KEY", "STRIPE_PRICE_PRO", "STRIPE_WEBHOOK_SECRET"):
     os.environ.pop(_k, None)

@@ -1,12 +1,21 @@
 """Backtest API: list strategies and run a backtest (FR-02, FR-03)."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.backtesting.engine import run_backtest
 from app.backtesting.schemas import BacktestRequest
 from app.backtesting.strategies import STRATEGIES
+from app.config import get_settings
+from app.ratelimit import RateLimiter
 
 router = APIRouter(tags=["backtest"])
+
+# The backtest runs a full simulation synchronously and is unauthenticated, so
+# cap how often any single IP can trigger it to protect CPU/availability.
+_settings = get_settings()
+_backtest_limiter = RateLimiter(
+    limit=_settings.backtest_rate_limit, window=_settings.backtest_rate_window
+)
 
 
 @router.get("/strategies")
@@ -23,7 +32,7 @@ def list_strategies() -> list[dict]:
     ]
 
 
-@router.post("/backtest")
+@router.post("/backtest", dependencies=[Depends(_backtest_limiter)])
 def post_backtest(req: BacktestRequest) -> dict:
     """Run a backtest synchronously and return stats + equity curve."""
     try:

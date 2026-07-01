@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     # Free-tier monthly saved-backtest limit (Pro = unlimited). FR-06.
     free_monthly_limit: int = 5
 
+    # Rate limit for the public POST /backtest (per client IP): at most
+    # ``backtest_rate_limit`` runs per ``backtest_rate_window`` seconds. Tuned
+    # to protect a small instance; tests raise it so the suite isn't throttled.
+    backtest_rate_limit: int = 20
+    backtest_rate_window: float = 60.0
+
     # Billing (Phase 5 — Stripe). Empty == billing disabled; endpoints 503 and
     # the frontend hides upgrade UI. Fill these to turn billing on.
     stripe_secret_key: str = ""
