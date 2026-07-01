@@ -1,0 +1,8 @@
+# Normalize line endings: store LF in the repo so the Linux/Docker deploy
+# gets correct scripts regardless of the committer's OS.
+* text=auto eol=lf
+
+# Binary assets — never touch.
+*.pdf binary
+*.png binary
+*.svg text eol=lf

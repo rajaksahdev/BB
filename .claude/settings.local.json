@@ -12,7 +12,10 @@
       "Bash(git rev-parse *)",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(grep -E '\\(\\\\.env$|\\\\.venv/|node_modules/|/dist/\\)')"
+      "Bash(grep -E '\\(\\\\.env$|\\\\.venv/|node_modules/|/dist/\\)')",
+      "Bash(git config *)",
+      "Bash(git commit -q -m ' *)",
+      "Bash(git commit *)"
     ]
   }
 }
