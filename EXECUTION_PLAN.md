@@ -27,7 +27,7 @@ trading · user-uploaded code · job queues / async workers (run sync).
 | **2 · Backtest core** | ✅ Done | Engine + 4 strategy modules (MA, RSI, DCA, Grid); fees(commission)+slippage(spread) modeled; `GET /strategies` + `POST /backtest` return JSON+disclaimer. Gate: all 4 run with realistic stats; 3yr hourly in **0.64s** (<5s NFR); unknown-param → 400. |
 | **3 · Auth + persistence** | ✅ Done | Supabase-JWT verify + dev-token fallback; `/me`, `POST/GET/DELETE /backtests`; free-tier limit enforced (4th → 402), Pro unlimited; ownership isolation (404 cross-user); 401 without token. Testable now without Supabase. |
 | **4 · Frontend** | ✅ Done | React + TS + Vite + lightweight-charts; data-driven config form → results (equity curve + stats); side-by-side comparison (up to 4 overlaid); dev-token auth, save/list/delete saved backtests, free-tier usage + 402 surfaced. Gate: full flow vs live API (CORS, run, compare, save, limit, isolation) verified. |
-| **5 · Billing** | ✅ Built (keys pending) | Lemon Squeezy (Merchant of Record) hosted Checkout + customer portal + HMAC-signature-verified webhook; env-gated (503 + UI hidden when unconfigured). Tier flips driven by webhooks (verified offline against the DB: subscription active→pro, expired→free). Frontend Upgrade/Manage + 402 upgrade prompt. **Provider note:** switched from Stripe to Lemon Squeezy to skip business verification and offload global tax. **Remaining for full gate:** add Lemon Squeezy test keys, then confirm a test card upgrades the user and the webhook flips tier live. |
+| **5 · Billing** | ✅ Done | Lemon Squeezy (Merchant of Record) hosted Checkout + customer portal + HMAC-signature-verified webhook; env-gated (503 + UI hidden when unconfigured). Tier flips driven by webhooks. **Verified live (test mode):** a `4242` test card completed checkout → LS fired `subscription_created` → signature verified → user flipped free→pro with `billing_customer_id`/`billing_subscription_id` persisted. Frontend Upgrade/Manage + 402 upgrade prompt. **Provider note:** switched from Stripe to Lemon Squeezy to skip business verification and offload global tax. **Before launch:** rotate the API key (shared in chat), decide final price (current test variant is $99.99/yr), and re-point the webhook at the production API URL. |
 | **6 · Polish + launch** | ✅ Built (deploy pending) | Landing page; loading/empty/error states; disclaimers on every view + footer; env-driven CORS; `postgres://`→psycopg URL normalization; Dockerfile + Render Blueprint (`render.yaml`) provisioning API + static frontend + Postgres. **Remaining for full gate:** founder accounts (Supabase/Render/domain), deploy, and confirm the e2e flow on the live URL. |
 
 ## Functional requirements (traceability)
@@ -47,7 +47,7 @@ trading · user-uploaded code · job queues / async workers (run sync).
 ## External prerequisites (founder tasks — gate later phases)
 
 - [ ] **Supabase** project created → gates Phase 3
-- [ ] **Lemon Squeezy** account (no business verification to start; test mode works immediately) → gates Phase 5
+- [x] **Lemon Squeezy** account (no business verification to start; test mode works immediately) → gates Phase 5 — done; live test-mode upgrade verified
 - [ ] **Railway/Render** account + managed Postgres → gates Phase 6
 - [ ] **Domain** registered → gates Phase 6
 - [ ] **Legal disclaimer** text finalized → gates Phase 6
