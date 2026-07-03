@@ -19,7 +19,7 @@ Binance data — no coding required.
 | Market data | Binance public REST klines |
 | Frontend | React + lightweight-charts (Phase 4) |
 | Auth | Supabase Auth (Phase 3) |
-| Billing | Stripe Checkout + Customer Portal (Phase 5) |
+| Billing | Lemon Squeezy (Merchant of Record) — hosted checkout + portal (Phase 5) |
 | Hosting | Railway / Render (Phase 6) |
 
 ## Repo layout
@@ -93,28 +93,33 @@ The suite is self-contained: it spins up a separate `backtestlab_test` database,
 creates the schema, and seeds synthetic candles — it never touches your dev data
 and needs no backfill.
 
-## Billing (Phase 5 — Stripe)
+## Billing (Phase 5 — Lemon Squeezy)
 
-Billing is implemented but **dormant until you add Stripe keys** — with none set,
-`/billing/*` actions return `503` and the frontend hides upgrade UI, so the rest
-of the app runs untouched. To turn it on (test mode):
+We use **Lemon Squeezy**, a Merchant of Record, instead of Stripe — so we can go
+live without business verification and the provider handles global sales tax/VAT.
+Billing is **dormant until you add keys** — with none set, `/billing/*` actions
+return `503` and the frontend hides upgrade UI, so the rest of the app runs
+untouched. Full walkthrough in [`docs/LEMONSQUEEZY_SETUP.md`](docs/LEMONSQUEEZY_SETUP.md).
+To turn it on (test mode):
 
 ```bash
 # In backend/.env (see .env.example for details):
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_PRICE_PRO=price_...        # a recurring Price for the Pro plan
-STRIPE_WEBHOOK_SECRET=whsec_...   # from `stripe listen` or a Dashboard endpoint
+LEMONSQUEEZY_API_KEY=eyJ0eXAi...
+LEMONSQUEEZY_STORE_ID=12345
+LEMONSQUEEZY_VARIANT_PRO=67890         # the recurring Pro variant id
+LEMONSQUEEZY_WEBHOOK_SECRET=your-signing-secret
 FRONTEND_URL=http://localhost:5173
 
-# Forward webhooks to the local API (Stripe CLI):
-stripe listen --forward-to localhost:8000/billing/webhook
+# Lemon Squeezy has no local CLI — expose the API with a tunnel and point a
+# dashboard webhook at https://<tunnel>/billing/webhook:
+ngrok http 8000
 ```
 
-Flow: **Upgrade to Pro** → Stripe Checkout → on success Stripe's webhook flips the
-user to `pro` (unlimited backtests). **Manage billing** opens the Customer Portal
-to cancel; the `subscription.deleted` webhook flips the user back to `free`. Tier
-is driven entirely by webhooks (the source of truth), never trusted from the
-client.
+Flow: **Upgrade to Pro** → Lemon Squeezy Checkout → on success the
+`subscription_created` webhook flips the user to `pro` (unlimited backtests).
+**Manage billing** opens the customer portal to cancel; the `subscription_expired`
+webhook flips the user back to `free`. Tier is driven entirely by
+signature-verified webhooks (the source of truth), never trusted from the client.
 
 ## Deploy (Phase 6)
 
@@ -129,9 +134,9 @@ head` on boot and serves on `$PORT`.
    `postgres://` URLs automatically.
 2. **Render** — New ▸ Blueprint ▸ pick this repo. After first deploy, fill the
    `sync: false` secrets: `CORS_ORIGINS` + `FRONTEND_URL` = the web URL,
-   `VITE_API_URL` = the API URL, plus Supabase/Stripe keys.
-3. **Stripe** (optional) — add live/test keys + a webhook pointing at
-   `<api-url>/billing/webhook` (see the Billing section).
+   `VITE_API_URL` = the API URL, plus Supabase/Lemon Squeezy keys.
+3. **Lemon Squeezy** (optional) — add the `LEMONSQUEEZY_*` keys + a webhook
+   pointing at `<api-url>/billing/webhook` (see the Billing section).
 4. Set `AUTH_DEV_MODE=false` in prod (the Blueprint already does) so `dev:` tokens
    are rejected.
 5. Verify: visit the web URL → run a backtest → sign in → save → upgrade.

@@ -48,17 +48,24 @@ class Settings(BaseSettings):
     backtest_rate_limit: int = 20
     backtest_rate_window: float = 60.0
 
-    # Billing (Phase 5 — Stripe). Empty == billing disabled; endpoints 503 and
-    # the frontend hides upgrade UI. Fill these to turn billing on.
-    stripe_secret_key: str = ""
-    stripe_webhook_secret: str = ""
-    stripe_price_pro: str = ""  # the recurring Price ID for the Pro plan
-    # Where Stripe Checkout / Portal send the user back to.
+    # Billing (Phase 5 — Lemon Squeezy, a Merchant of Record). Chosen over Stripe
+    # so we skip business verification to launch and let the provider handle
+    # global sales tax/VAT. Empty == billing disabled; endpoints 503 and the
+    # frontend hides upgrade UI. Fill these to turn billing on.
+    lemonsqueezy_api_key: str = ""
+    lemonsqueezy_store_id: str = ""
+    lemonsqueezy_variant_pro: str = ""  # the Pro plan's variant id
+    lemonsqueezy_webhook_secret: str = ""
+    # Where Checkout / Portal send the user back to.
     frontend_url: str = "http://localhost:5173"
 
     @property
     def billing_enabled(self) -> bool:
-        return bool(self.stripe_secret_key and self.stripe_price_pro)
+        return bool(
+            self.lemonsqueezy_api_key
+            and self.lemonsqueezy_store_id
+            and self.lemonsqueezy_variant_pro
+        )
 
     @property
     def cors_origin_list(self) -> list[str]:

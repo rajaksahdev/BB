@@ -21,8 +21,15 @@ os.environ["AUTH_DEV_MODE"] = "true"
 # share one client IP). Rate-limit behavior is covered by a focused unit test.
 os.environ["BACKTEST_RATE_LIMIT"] = "100000"
 # Ensure billing is OFF by default (individual tests opt in via monkeypatch).
-for _k in ("STRIPE_SECRET_KEY", "STRIPE_PRICE_PRO", "STRIPE_WEBHOOK_SECRET"):
-    os.environ.pop(_k, None)
+# Set to empty rather than popping: an explicit env var overrides any value in a
+# developer's local backend/.env, so the suite stays hermetic once real keys exist.
+for _k in (
+    "LEMONSQUEEZY_API_KEY",
+    "LEMONSQUEEZY_STORE_ID",
+    "LEMONSQUEEZY_VARIANT_PRO",
+    "LEMONSQUEEZY_WEBHOOK_SECRET",
+):
+    os.environ[_k] = ""
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",

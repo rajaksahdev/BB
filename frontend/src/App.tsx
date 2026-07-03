@@ -57,7 +57,7 @@ export default function App() {
   const [nextId, setNextId] = useState(1);
   const [savedReload, setSavedReload] = useState(0);
   const [billingEnabled, setBillingEnabled] = useState(false);
-  // Show the marketing landing first, unless we're returning from Stripe.
+  // Show the marketing landing first, unless we're returning from checkout.
   const [view, setView] = useState<"landing" | "app">(() => {
     const p = new URLSearchParams(window.location.search);
     return p.get("checkout") || p.get("portal") ? "app" : "landing";
@@ -73,7 +73,7 @@ export default function App() {
   const refreshMeRef = useRef(auth.refreshMe);
   refreshMeRef.current = auth.refreshMe;
 
-  // Handle the redirect back from Stripe Checkout / Portal (once, on mount).
+  // Handle the redirect back from Lemon Squeezy Checkout / Portal (once, on mount).
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const checkout = params.get("checkout");
@@ -179,7 +179,7 @@ export default function App() {
     }
     try {
       const { url } = await startCheckout();
-      window.location.href = url; // hand off to Stripe-hosted Checkout
+      window.location.href = url; // hand off to Lemon Squeezy-hosted Checkout
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : (e as Error).message;
       setNotice({ kind: "warn", text: `Couldn’t start checkout: ${msg}` });

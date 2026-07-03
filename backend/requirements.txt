@@ -18,5 +18,5 @@ numpy==2.5.0
 # --- Phase 3: auth ---
 PyJWT==2.10.1
 
-# --- Phase 5: billing ---
-stripe==11.4.1
+# --- Phase 5: billing (Lemon Squeezy) ---
+# No official Python SDK; called over REST with httpx (pinned above).

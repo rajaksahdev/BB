@@ -15,7 +15,7 @@ settings = get_settings()
 
 # API payloads here are small JSON bodies (a backtest config, a saved label).
 # Reject anything larger up front so a huge body can't tie up the worker. The
-# Stripe webhook is exempt — event payloads can legitimately be larger.
+# billing webhook is exempt — event payloads can legitimately be larger.
 _MAX_BODY_BYTES = 64 * 1024
 
 app = FastAPI(

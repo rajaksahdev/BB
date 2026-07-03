@@ -215,12 +215,12 @@ export function getBillingConfig(): Promise<{ enabled: boolean }> {
   return request<{ enabled: boolean }>("/billing/config");
 }
 
-/** Start a Pro Checkout; resolves to the Stripe-hosted URL to redirect to. */
+/** Start a Pro Checkout; resolves to the Lemon Squeezy-hosted URL to redirect to. */
 export function startCheckout(): Promise<{ url: string }> {
   return request<{ url: string }>("/billing/checkout", { method: "POST" });
 }
 
-/** Open the Stripe Customer Portal; resolves to the hosted URL. */
+/** Open the Lemon Squeezy customer portal; resolves to the hosted URL. */
 export function openPortal(): Promise<{ url: string }> {
   return request<{ url: string }>("/billing/portal", { method: "POST" });
 }

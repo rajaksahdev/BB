@@ -39,11 +39,12 @@ After creation you'll have (names may get a random suffix):
 | `APP_ENV` | ✅ auto | `production` |
 | `AUTH_DEV_MODE` | ✅ auto | `false` — **never** accept `dev:` tokens in prod |
 | `CORS_ORIGINS` | 🔑 you | the **Web URL**, e.g. `https://backtestlab-web.onrender.com` (no trailing slash) |
-| `FRONTEND_URL` | 🔑 you | same **Web URL** (Stripe Checkout/Portal redirect target) |
+| `FRONTEND_URL` | 🔑 you | same **Web URL** (Lemon Squeezy Checkout/Portal redirect target) |
 | `SUPABASE_JWT_SECRET` | 🔑 you | Supabase → Project Settings → API → **JWT Secret** |
-| `STRIPE_SECRET_KEY` | 🔑 you (later) | `sk_test_…` now / `sk_live_…` at launch. Leave blank → billing stays off (503 + UI hidden) |
-| `STRIPE_PRICE_PRO` | 🔑 you (later) | the recurring `price_…` |
-| `STRIPE_WEBHOOK_SECRET` | 🔑 you (later) | from the **Dashboard** webhook endpoint (see step 6) — the Stripe CLI is dev-only |
+| `LEMONSQUEEZY_API_KEY` | 🔑 you (later) | Lemon Squeezy → Settings → API. Leave blank → billing stays off (503 + UI hidden) |
+| `LEMONSQUEEZY_STORE_ID` | 🔑 you (later) | the store's numeric id |
+| `LEMONSQUEEZY_VARIANT_PRO` | 🔑 you (later) | the recurring Pro variant id |
+| `LEMONSQUEEZY_WEBHOOK_SECRET` | 🔑 you (later) | the signing secret you set on the Dashboard webhook (see step 6) |
 
 Optional (have sane defaults; override only if needed): `SUPABASE_JWT_AUD`
 (`authenticated`), `FREE_MONTHLY_LIMIT` (`5`), `BACKTEST_RATE_LIMIT` (`20`),
@@ -95,24 +96,24 @@ Then in the browser (Web URL): run a backtest → equity curve renders → sign 
 (real Supabase login, since dev tokens are off) → save → list. If CORS blocks
 the API call, re-check `CORS_ORIGINS` exactly matches the Web origin.
 
-## 6. Stripe in production (do at launch, after verification)
+## 6. Lemon Squeezy in production (do at launch)
 
-The Stripe **CLI** is for local dev only. In prod you register a Dashboard
-webhook:
+Lemon Squeezy is a Merchant of Record, so there's no business verification to
+start and it remits sales tax/VAT for you. Register a Dashboard webhook against
+the live API:
 
-1. Stripe Dashboard (live) → Developers → **Webhooks** → **Add endpoint**:
+1. Lemon Squeezy → Settings → **Webhooks** → **+**:
    URL = `https://backtestlab-api.onrender.com/billing/webhook`.
-2. Subscribe to: `checkout.session.completed`,
-   `customer.subscription.created`, `customer.subscription.updated`,
-   `customer.subscription.deleted`.
-3. Copy the endpoint's **Signing secret** (`whsec_…`) → set
-   `STRIPE_WEBHOOK_SECRET` on the API service; set the live `STRIPE_SECRET_KEY`
-   and `STRIPE_PRICE_PRO` too. API redeploys → `/billing/config` returns
+2. Choose a **signing secret** and subscribe to the `subscription_*` events
+   (created, updated, cancelled, expired, paused, resumed).
+3. Set the live `LEMONSQUEEZY_API_KEY`, `LEMONSQUEEZY_STORE_ID`,
+   `LEMONSQUEEZY_VARIANT_PRO`, and `LEMONSQUEEZY_WEBHOOK_SECRET` (the value from
+   step 2) on the API service. API redeploys → `/billing/config` returns
    `{"enabled": true}`.
 
-Until you're verified, you can point these at **test-mode** values and confirm
-the whole flow (see [`STRIPE_TEST_MODE.md`](STRIPE_TEST_MODE.md)) — the Phase 5
-gate closes in test mode.
+Before launch you can do the whole flow in **test mode** — see
+[`LEMONSQUEEZY_SETUP.md`](LEMONSQUEEZY_SETUP.md); the Phase 5 gate closes in test
+mode with no verification.
 
 ---
 
@@ -132,5 +133,5 @@ gate closes in test mode.
 - ✅ **Auto (don't touch):** `DATABASE_URL`, `APP_ENV`, `AUTH_DEV_MODE`
 - 🔑 **You, from the URLs:** `CORS_ORIGINS`, `FRONTEND_URL`, `VITE_API_URL`
 - 🔑 **You, from Supabase:** `SUPABASE_JWT_SECRET`
-- 🔑 **You, from Stripe (optional until launch):** `STRIPE_SECRET_KEY`,
-  `STRIPE_PRICE_PRO`, `STRIPE_WEBHOOK_SECRET`
+- 🔑 **You, from Lemon Squeezy (optional until launch):** `LEMONSQUEEZY_API_KEY`,
+  `LEMONSQUEEZY_STORE_ID`, `LEMONSQUEEZY_VARIANT_PRO`, `LEMONSQUEEZY_WEBHOOK_SECRET`
