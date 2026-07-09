@@ -89,8 +89,10 @@ export default function EquityChart({ series }: { series: EquitySeries[] }) {
         lineWidth: 2,
         lineStyle: LineStyle.Solid,
         priceLineVisible: false,
+        // Keep the compact last-value label on the axis, but no series
+        // title: it renders as a banner across the plot and covers data —
+        // the legend chips under the chart already name each run.
         lastValueVisible: true,
-        title: s.label,
       });
       line.setData(toLineData(s.points));
       seriesRef.current.push(line);
