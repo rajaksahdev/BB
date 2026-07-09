@@ -1,22 +1,51 @@
 :root {
-  --sans: system-ui, "Segoe UI", Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --sans: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --border: #e3e6ea;
-  --text: #1c2230;
-  --muted: #6b7280;
-  --accent: #2962ff;
-  --accent-weak: #eaf0ff;
-  --pos: #16a34a;
-  --neg: #dc2626;
+  /* ---- Base surfaces (layered, near-black with a cool tint) ---- */
+  --bg: #080b12;
+  --bg-elev: #0c1119;
+  --surface: #111826;
+  --surface-2: #161f30;
+  --surface-3: #1d2840;
+  --border: #222c40;
+  --border-strong: #33415e;
+
+  /* ---- Text ---- */
+  --text: #e9eef8;
+  --text-dim: #aeb9cd;
+  --muted: #6c788f;
+
+  /* ---- Accent (electric blue → violet) ---- */
+  --accent: #4f7cff;
+  --accent-2: #8a5cff;
+  --accent-weak: rgba(79, 124, 255, 0.14);
+  --accent-border: rgba(79, 124, 255, 0.4);
+
+  /* ---- P&L (neon, tuned for AA contrast on dark) ---- */
+  --pos: #2fe08a;
+  --pos-weak: rgba(47, 224, 138, 0.13);
+  --neg: #ff5c7a;
+  --neg-weak: rgba(255, 92, 122, 0.13);
+  --warn: #ffca5c;
+  --warn-weak: rgba(255, 202, 92, 0.12);
+
+  /* ---- Elevation + glow ---- */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-2: 0 12px 34px -16px rgba(0, 0, 0, 0.8);
+  --glow-accent: 0 0 24px -4px rgba(79, 124, 255, 0.55);
+  --glow-pos: 0 0 22px -6px rgba(47, 224, 138, 0.55);
+
+  --radius: 14px;
+  --radius-sm: 9px;
 
   font: 15px/1.5 var(--sans);
   color: var(--text);
   background: var(--bg);
+  color-scheme: dark;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 * {
@@ -25,12 +54,54 @@
 
 body {
   margin: 0;
+  min-height: 100vh;
+  /* Depth: soft accent glows bleeding in from the top corners. */
+  background:
+    radial-gradient(1100px 600px at 12% -8%, rgba(79, 124, 255, 0.10), transparent 60%),
+    radial-gradient(1000px 620px at 92% -12%, rgba(138, 92, 255, 0.10), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
 }
 
 h1,
 h2,
 h3 {
   margin: 0;
-  font-weight: 600;
+  font-weight: 650;
   color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+a {
+  color: var(--accent);
+}
+
+::selection {
+  background: rgba(79, 124, 255, 0.32);
+}
+
+/* ---- Scrollbars (dark) ---- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #435273;
+  background-clip: content-box;
+}
+
+/* Keyboard focus: a visible accent ring everywhere. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }

@@ -44,17 +44,22 @@ export default function EquityChart({ series }: { series: EquitySeries[] }) {
       width: container.clientWidth,
       height: 360,
       layout: {
-        background: { type: ColorType.Solid, color: "#ffffff" },
-        textColor: "#333",
-        fontFamily: "system-ui, sans-serif",
+        // Dark trading-terminal theme, matching the app tokens.
+        background: { type: ColorType.Solid, color: "#0c1119" },
+        textColor: "#8b95a8",
+        fontFamily: "ui-monospace, 'SF Mono', Menlo, Consolas, monospace",
       },
       grid: {
-        vertLines: { color: "#f0f0f0" },
-        horzLines: { color: "#f0f0f0" },
+        vertLines: { color: "rgba(51, 65, 94, 0.35)" },
+        horzLines: { color: "rgba(51, 65, 94, 0.35)" },
       },
-      rightPriceScale: { borderColor: "#e0e0e0" },
-      timeScale: { borderColor: "#e0e0e0", timeVisible: true },
-      crosshair: { mode: 0 },
+      rightPriceScale: { borderColor: "#222c40" },
+      timeScale: { borderColor: "#222c40", timeVisible: true },
+      crosshair: {
+        mode: 0,
+        vertLine: { color: "rgba(79, 124, 255, 0.5)", labelBackgroundColor: "#4f7cff" },
+        horzLine: { color: "rgba(79, 124, 255, 0.5)", labelBackgroundColor: "#4f7cff" },
+      },
     });
     chartRef.current = chart;
 

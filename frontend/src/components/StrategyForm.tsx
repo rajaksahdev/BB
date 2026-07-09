@@ -134,7 +134,7 @@ export default function StrategyForm({ strategies, busy, onRun }: Props) {
             <input
               type="number"
               min={1}
-              step={100}
+              step="any"
               value={cash}
               onChange={(e) => setCash(Number(e.target.value))}
             />
