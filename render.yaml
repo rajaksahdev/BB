@@ -32,7 +32,12 @@ services:
         sync: false
       - key: FRONTEND_URL
         sync: false
-      # Supabase (Phase 3) and Lemon Squeezy (Phase 5) secrets:
+      # Supabase (Phase 3) and Lemon Squeezy (Phase 5) secrets. New Supabase
+      # projects sign JWTs asymmetrically — set SUPABASE_URL and the API
+      # verifies via the public JWKS (no secret needed). SUPABASE_JWT_SECRET
+      # is only for legacy HS256 projects.
+      - key: SUPABASE_URL
+        sync: false
       - key: SUPABASE_JWT_SECRET
         sync: false
       - key: LEMONSQUEEZY_API_KEY
@@ -54,6 +59,12 @@ services:
     envVars:
       # Set to the deployed API origin (e.g. https://backtestlab-api.onrender.com)
       - key: VITE_API_URL
+        sync: false
+      # Supabase project URL + anon/publishable key: enables real email/password
+      # sign-in. Leave unset to fall back to dev-token auth (local dev only).
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
         sync: false
     routes:
       # SPA fallback so client-side paths resolve to index.html.

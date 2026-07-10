@@ -32,7 +32,11 @@ class Settings(BaseSettings):
     # Market data (Phase 1)
     binance_base_url: str = "https://api.binance.com"
 
-    # Auth (Phase 3 — Supabase)
+    # Auth (Phase 3 — Supabase). Two verification modes:
+    #  - supabase_url set: fetch the project's public JWKS and verify ES256/RS256
+    #    tokens (new Supabase projects sign with asymmetric keys).
+    #  - supabase_jwt_secret set: verify HS256 with the legacy shared secret.
+    supabase_url: str = ""
     supabase_jwt_secret: str = ""
     supabase_jwt_aud: str = "authenticated"
     # When true, accept "Bearer dev:<email>" tokens for local testing without

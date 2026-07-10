@@ -17,6 +17,7 @@ numpy==2.5.0
 
 # --- Phase 3: auth ---
 PyJWT==2.10.1
+cryptography==49.0.0  # ES256 verification of Supabase JWKS-signed tokens
 
 # --- Phase 5: billing (Lemon Squeezy) ---
 # No official Python SDK; called over REST with httpx (pinned above).

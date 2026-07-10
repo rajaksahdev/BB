@@ -75,7 +75,8 @@
   gap: 8px;
   font-size: 13px;
 }
-.auth-bar input[type="email"] {
+.auth-bar input[type="email"],
+.auth-bar input[type="password"] {
   font: inherit;
   color: var(--text);
   background: var(--surface-2);
@@ -84,15 +85,21 @@
   border-radius: var(--radius-sm);
   min-width: 160px;
 }
-.auth-bar input[type="email"]::placeholder {
+.auth-bar input[type="password"] {
+  min-width: 120px;
+}
+.auth-bar input[type="email"]::placeholder,
+.auth-bar input[type="password"]::placeholder {
   color: var(--muted);
 }
-.auth-bar input[type="email"]:focus {
+.auth-bar input[type="email"]:focus,
+.auth-bar input[type="password"]:focus {
   border-color: var(--accent);
   outline: none;
   box-shadow: 0 0 0 3px var(--accent-weak);
 }
-.auth-bar button[type="submit"] {
+.auth-bar button[type="submit"],
+.auth-bar button[type="button"] {
   font: inherit;
   font-weight: 600;
   color: #fff;
@@ -104,10 +111,17 @@
   box-shadow: var(--shadow-1);
   transition: filter 0.15s, transform 0.05s;
 }
-.auth-bar button[type="submit"]:hover {
+.auth-bar button[type="button"] {
+  background: var(--surface-3);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+}
+.auth-bar button[type="submit"]:hover,
+.auth-bar button[type="button"]:hover {
   filter: brightness(1.08);
 }
-.auth-bar button[type="submit"]:active {
+.auth-bar button[type="submit"]:active,
+.auth-bar button[type="button"]:active {
   transform: translateY(1px);
 }
 .auth-bar.signed-in {
@@ -149,6 +163,9 @@
 }
 .auth-err {
   color: var(--neg);
+}
+.auth-info {
+  color: var(--muted);
 }
 .auth-actions {
   display: flex;

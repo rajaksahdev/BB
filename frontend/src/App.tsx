@@ -221,7 +221,10 @@ export default function App() {
           me={auth.me}
           signedIn={signedIn}
           billingEnabled={billingEnabled}
-          onSignIn={auth.signInDev}
+          mode={auth.mode}
+          onSignInDev={auth.signInDev}
+          onSignIn={auth.signIn}
+          onSignUp={auth.signUp}
           onSignOut={auth.signOut}
           onUpgrade={handleUpgrade}
           onManageBilling={handleManageBilling}

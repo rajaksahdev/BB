@@ -1,7 +1,9 @@
 """Authentication: verify Supabase JWTs (and a dev fallback) -> User row.
 
-Production: the frontend logs in via Supabase, which issues a JWT signed with
-the project's JWT secret (HS256). We verify it here and map ``sub`` (the
+Production: the frontend logs in via Supabase, which issues a JWT. New Supabase
+projects sign tokens with asymmetric keys (ES256) — when ``SUPABASE_URL`` is
+set we verify against the project's public JWKS. Older projects sign HS256 with
+a shared secret (``SUPABASE_JWT_SECRET``). Either way we map ``sub`` (the
 Supabase user UUID) to a local ``users`` row.
 
 Local dev (no Supabase needed): when ``AUTH_DEV_MODE`` is on, a token of the
@@ -10,6 +12,7 @@ keeps Phase 3 fully testable before Supabase keys exist. Turn it OFF in prod.
 """
 
 import uuid
+from functools import lru_cache
 
 import jwt
 from fastapi import Depends, Header, HTTPException
@@ -23,6 +26,13 @@ settings = get_settings()
 
 _DEV_PREFIX = "dev:"
 _DEV_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "backtestlab.dev")
+
+
+@lru_cache
+def _jwks_client() -> jwt.PyJWKClient:
+    """Cached JWKS client for the Supabase project (keys cached in-process)."""
+    base = settings.supabase_url.rstrip("/")
+    return jwt.PyJWKClient(f"{base}/auth/v1/.well-known/jwks.json", cache_keys=True)
 
 
 def get_or_create_user(db: Session, user_id: uuid.UUID, email: str) -> User:
@@ -52,16 +62,25 @@ def get_current_user(
         return get_or_create_user(db, user_id, email)
 
     # --- Supabase JWT ---
-    if not settings.supabase_jwt_secret:
+    if not (settings.supabase_url or settings.supabase_jwt_secret):
         raise HTTPException(
             status_code=503,
-            detail="Auth not configured. Set SUPABASE_JWT_SECRET (or use a 'dev:' token in development).",
+            detail=(
+                "Auth not configured. Set SUPABASE_URL (JWKS) or "
+                "SUPABASE_JWT_SECRET (or use a 'dev:' token in development)."
+            ),
         )
     try:
+        if settings.supabase_url:
+            key = _jwks_client().get_signing_key_from_jwt(token).key
+            algorithms = ["ES256", "RS256"]
+        else:
+            key = settings.supabase_jwt_secret
+            algorithms = ["HS256"]
         payload = jwt.decode(
             token,
-            settings.supabase_jwt_secret,
-            algorithms=["HS256"],
+            key,
+            algorithms=algorithms,
             audience=settings.supabase_jwt_aud,
         )
     except jwt.PyJWTError as exc:
