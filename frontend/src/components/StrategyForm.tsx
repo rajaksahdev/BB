@@ -15,13 +15,54 @@ import {
 interface Props {
   strategies: Strategy[];
   busy: boolean;
-  onRun: (req: BacktestRequest) => void;
+  onRun: (req: BacktestRequest, periodLabel?: string) => void;
+  /** Pairs/intervals with data (from GET /symbols); defaults cover offline dev. */
+  symbols?: readonly string[];
+  intervals?: readonly string[];
 }
 
-export default function StrategyForm({ strategies, busy, onRun }: Props) {
-  const [symbol, setSymbol] = useState<string>(SYMBOLS[0]);
-  const [interval, setInterval] = useState<string>(INTERVALS[0]);
+const INTERVAL_LABELS: Record<string, string> = { "1d": "Daily", "1h": "Hourly" };
+
+/** Backtest period presets. `start`/`end` are computed at submit time. */
+interface Period {
+  key: string;
+  label: string;
+  range: () => { start?: string; end?: string };
+}
+
+// Naive UTC ISO (no timezone suffix) to match the backend's stored open_time.
+const isoDay = (d: Date) => d.toISOString().slice(0, 10) + "T00:00:00";
+const monthsAgo = (n: number) => {
+  const d = new Date();
+  d.setUTCMonth(d.getUTCMonth() - n);
+  return d;
+};
+const yearStart = (y: number) => new Date(Date.UTC(y, 0, 1));
+
+const THIS_YEAR = new Date().getUTCFullYear();
+const PERIODS: Period[] = [
+  { key: "all", label: "All history", range: () => ({}) },
+  { key: "12m", label: "Last 12 months", range: () => ({ start: isoDay(monthsAgo(12)) }) },
+  { key: "24m", label: "Last 24 months", range: () => ({ start: isoDay(monthsAgo(24)) }) },
+  { key: "ytd", label: `${THIS_YEAR} YTD`, range: () => ({ start: isoDay(yearStart(THIS_YEAR)) }) },
+  ...[THIS_YEAR - 1, THIS_YEAR - 2].map((y) => ({
+    key: `y${y}`,
+    label: String(y),
+    range: () => ({ start: isoDay(yearStart(y)), end: isoDay(yearStart(y + 1)) }),
+  })),
+];
+
+export default function StrategyForm({
+  strategies,
+  busy,
+  onRun,
+  symbols = SYMBOLS,
+  intervals = INTERVALS,
+}: Props) {
+  const [symbol, setSymbol] = useState<string>(symbols[0]);
+  const [interval, setInterval] = useState<string>(intervals[0]);
   const [strategyKey, setStrategyKey] = useState<string>(strategies[0]?.key ?? "");
+  const [periodKey, setPeriodKey] = useState<string>("all");
   const [cash, setCash] = useState<number>(10_000);
   const [feePct, setFeePct] = useState<number>(0.1); // shown as %, sent as fraction
   const [slippagePct, setSlippagePct] = useState<number>(0.05);
@@ -54,15 +95,20 @@ export default function StrategyForm({ strategies, busy, onRun }: Props) {
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!strategy) return;
-    onRun({
-      symbol,
-      interval,
-      strategy: strategy.key,
-      params: currentParams,
-      cash,
-      fee_pct: feePct / 100,
-      slippage_pct: slippagePct / 100,
-    });
+    const period = PERIODS.find((p) => p.key === periodKey) ?? PERIODS[0];
+    onRun(
+      {
+        symbol,
+        interval,
+        strategy: strategy.key,
+        params: currentParams,
+        cash,
+        fee_pct: feePct / 100,
+        slippage_pct: slippagePct / 100,
+        ...period.range(),
+      },
+      period.key === "all" ? undefined : period.label,
+    );
   }
 
   return (
@@ -71,7 +117,7 @@ export default function StrategyForm({ strategies, busy, onRun }: Props) {
         <label className="field">
           <span>Pair</span>
           <select value={symbol} onChange={(e) => setSymbol(e.target.value)}>
-            {SYMBOLS.map((s) => (
+            {symbols.map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>
@@ -82,14 +128,25 @@ export default function StrategyForm({ strategies, busy, onRun }: Props) {
         <label className="field">
           <span>Interval</span>
           <select value={interval} onChange={(e) => setInterval(e.target.value)}>
-            {INTERVALS.map((i) => (
+            {intervals.map((i) => (
               <option key={i} value={i}>
-                {i === "1d" ? "Daily" : "Hourly"}
+                {INTERVAL_LABELS[i] ?? i}
               </option>
             ))}
           </select>
         </label>
       </div>
+
+      <label className="field">
+        <span>Period</span>
+        <select value={periodKey} onChange={(e) => setPeriodKey(e.target.value)}>
+          {PERIODS.map((p) => (
+            <option key={p.key} value={p.key}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <label className="field">
         <span>Strategy</span>

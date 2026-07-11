@@ -5,12 +5,15 @@ import {
   getBillingConfig,
   getSaved,
   getStrategies,
+  getSymbols,
+  INTERVALS,
   openPortal,
   resultToRequest,
   runBacktest,
   saveBacktest,
   savedToResult,
   startCheckout,
+  SYMBOLS,
   type BacktestRequest,
   type BacktestResult,
   type Strategy,
@@ -21,6 +24,7 @@ import StatsPanel from "./components/StatsPanel";
 import AuthBar from "./components/AuthBar";
 import SavedList from "./components/SavedList";
 import Landing from "./components/Landing";
+import TradesTable from "./components/TradesTable";
 import EquityChart, { type EquitySeries } from "./components/EquityChart";
 import { colorForIndex } from "./chartColors";
 import "./App.css";
@@ -40,11 +44,20 @@ interface Run {
 
 const MAX_RUNS = 4; // overlay cap for the comparison view
 
+// Free hosting spins the API down when idle; the first request can take ~1
+// minute. Retry the initial load on this backoff before declaring it down.
+const RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 45_000];
+
+type ApiStatus = "connecting" | "waking" | "up" | "down";
+
 export default function App() {
   const auth = useAuth();
   const signedIn = !!auth.token;
 
   const [strategies, setStrategies] = useState<Strategy[]>([]);
+  const [apiStatus, setApiStatus] = useState<ApiStatus>("connecting");
+  const [symbols, setSymbols] = useState<readonly string[]>(SYMBOLS);
+  const [intervals, setIntervals] = useState<readonly string[]>(INTERVALS);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [runErr, setRunErr] = useState<string | null>(null);
   const [notice, setNotice] = useState<{
@@ -64,8 +77,44 @@ export default function App() {
   });
 
   useEffect(() => {
-    getStrategies().then(setStrategies).catch((e) => setLoadErr(String(e.message ?? e)));
+    let cancelled = false;
+
+    // Kicks off on landing mount, so the API warms up while the visitor reads.
+    async function loadStrategies() {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const list = await getStrategies();
+          if (cancelled) return;
+          setStrategies(list);
+          setApiStatus("up");
+          return;
+        } catch (e) {
+          if (cancelled) return;
+          if (attempt >= RETRY_DELAYS_MS.length) {
+            setApiStatus("down");
+            setLoadErr(String((e as Error).message ?? e));
+            return;
+          }
+          setApiStatus("waking");
+          await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
+          if (cancelled) return;
+        }
+      }
+    }
+
+    void loadStrategies();
     getBillingConfig().then((c) => setBillingEnabled(c.enabled)).catch(() => setBillingEnabled(false));
+    // Data-driven pair/interval lists; the hardcoded defaults stay on failure.
+    getSymbols()
+      .then(({ symbols: s, intervals: i }) => {
+        if (cancelled) return;
+        if (s.length > 0) setSymbols(s);
+        if (i.length > 0) setIntervals(i);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Keep a stable handle to the latest refreshMe so the run-once mount effect
@@ -98,20 +147,24 @@ export default function App() {
     setNextId((n) => n + 1);
   }
 
-  function labelFor(req: { symbol: string; interval: string; strategy: string; params: Record<string, number> }) {
+  function labelFor(
+    req: { symbol: string; interval: string; strategy: string; params: Record<string, number> },
+    periodLabel?: string,
+  ) {
     const strat = strategies.find((s) => s.key === req.strategy);
     const paramStr = Object.entries(req.params)
       .map(([k, v]) => `${k}=${v}`)
       .join(", ");
-    return `${req.symbol} ${req.interval} · ${strat?.name ?? req.strategy} (${paramStr})`;
+    const period = periodLabel ? ` · ${periodLabel}` : "";
+    return `${req.symbol} ${req.interval} · ${strat?.name ?? req.strategy} (${paramStr})${period}`;
   }
 
-  async function handleRun(req: BacktestRequest) {
+  async function handleRun(req: BacktestRequest, periodLabel?: string) {
     setBusy(true);
     setRunErr(null);
     try {
       const result = await runBacktest(req);
-      addRun(result, labelFor(req));
+      addRun(result, labelFor(req, periodLabel));
     } catch (e) {
       setRunErr(e instanceof ApiError ? e.message : String((e as Error).message ?? e));
     } finally {
@@ -231,6 +284,13 @@ export default function App() {
         />
       </header>
 
+      {apiStatus === "waking" && (
+        <div className="running-bar wake-banner">
+          <span className="spinner" /> Waking the API — free hosting spins down when idle,
+          the first load can take up to a minute…
+        </div>
+      )}
+
       {view === "landing" ? <Landing onLaunch={() => setView("app")} /> : AppLab()}
 
       <footer className="app-footer">
@@ -267,7 +327,13 @@ export default function App() {
           <section className="panel config-panel">
             <h2>Configure</h2>
             {strategies.length > 0 ? (
-              <StrategyForm strategies={strategies} busy={busy} onRun={handleRun} />
+              <StrategyForm
+                strategies={strategies}
+                symbols={symbols}
+                intervals={intervals}
+                busy={busy}
+                onRun={handleRun}
+              />
             ) : (
               !loadErr && <p className="muted">Loading strategies…</p>
             )}
@@ -352,6 +418,7 @@ export default function App() {
                       )}
                     </div>
                     <StatsPanel result={r.result} />
+                    <TradesTable trades={r.result.trades} />
                   </div>
                 ))}
               </div>

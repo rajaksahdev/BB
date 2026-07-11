@@ -67,6 +67,8 @@ export interface BacktestRequest {
   cash: number;
   fee_pct: number;
   slippage_pct: number;
+  start?: string; // ISO datetime — omit for full history
+  end?: string;
   name?: string; // optional label, used when saving
 }
 
@@ -144,19 +146,34 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/** Abort requests that hang (e.g. the API cold-starting on free hosting). */
+const DEFAULT_TIMEOUT_MS = 20_000;
+
+async function request<T>(
+  path: string,
+  init?: RequestInit & { timeoutMs?: number },
+): Promise<T> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, ...rest } = init ?? {};
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`, { ...init, headers: { ...headers, ...init?.headers } });
+    res = await fetch(`${API_URL}${path}`, {
+      ...rest,
+      headers: { ...headers, ...rest.headers },
+      signal: ctrl.signal,
+    });
   } catch {
     throw new ApiError(
       0,
-      `Cannot reach the API at ${API_URL}. Is the backend running? ` +
-        `(uvicorn app.main:app --reload)`,
+      "Can't reach the API — it may be waking up from sleep (free hosting spins " +
+        "down when idle). It usually answers within a minute; retrying.",
     );
+  } finally {
+    clearTimeout(timer);
   }
   if (!res.ok) {
     // FastAPI errors come back as { detail: string | [...] }.
@@ -177,6 +194,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function getStrategies(): Promise<Strategy[]> {
   return request<Strategy[]>("/strategies");
+}
+
+/** Pairs/intervals that actually have candle data (drives the config selects). */
+export function getSymbols(): Promise<{ symbols: string[]; intervals: string[] }> {
+  return request<{ symbols: string[]; intervals: string[] }>("/symbols");
 }
 
 export function runBacktest(body: BacktestRequest): Promise<BacktestResult> {
@@ -259,6 +281,10 @@ export function resultToRequest(r: BacktestResult, name?: string): BacktestReque
     cash: r.stats.starting_cash,
     fee_pct: r.assumptions.fee_pct,
     slippage_pct: r.assumptions.slippage_pct,
+    // Pin the window the run actually covered, so saving a ranged run
+    // re-executes the same period rather than all history.
+    start: r.request.start,
+    end: r.request.end,
     name,
   };
 }

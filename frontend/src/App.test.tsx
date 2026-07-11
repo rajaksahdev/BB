@@ -17,6 +17,7 @@ vi.mock("./api", async (importActual) => {
     ...actual,
     setAuthToken: vi.fn(),
     getStrategies: vi.fn(),
+    getSymbols: vi.fn(),
     getBillingConfig: vi.fn(),
     getMe: vi.fn(),
     listSaved: vi.fn(),
@@ -74,6 +75,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   vi.mocked(api.getStrategies).mockResolvedValue([STRATEGY]);
+  vi.mocked(api.getSymbols).mockResolvedValue({ symbols: ["BTCUSDT", "ETHUSDT"], intervals: ["1d", "1h"] });
   vi.mocked(api.getBillingConfig).mockResolvedValue({ enabled: true });
   vi.mocked(api.getMe).mockResolvedValue(FREE_ME);
   vi.mocked(api.listSaved).mockResolvedValue([]);
