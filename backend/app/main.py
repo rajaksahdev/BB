@@ -3,6 +3,8 @@
 Run locally:  uvicorn app.main:app --reload  (from the backend/ directory)
 """
 
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -12,6 +14,13 @@ from app.api import backtest, backtests, billing, health
 from app.config import get_settings
 
 settings = get_settings()
+
+# Route the app's own loggers (backtestlab.billing, .backfill, .freshness, …)
+# to stdout at the configured level so they show up in platform logs.
+logging.basicConfig(
+    level=getattr(logging, settings.log_level.upper(), logging.INFO),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 # API payloads here are small JSON bodies (a backtest config, a saved label).
 # Reject anything larger up front so a huge body can't tie up the worker. The

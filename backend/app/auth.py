@@ -16,6 +16,7 @@ from functools import lru_cache
 
 import jwt
 from fastapi import Depends, Header, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -40,7 +41,16 @@ def get_or_create_user(db: Session, user_id: uuid.UUID, email: str) -> User:
     if user is None:
         user = User(id=user_id, email=email or f"{user_id}@unknown.local", tier="free")
         db.add(user)
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            # Concurrent first sign-in: another request inserted the row
+            # between our SELECT and COMMIT. Use theirs.
+            db.rollback()
+            user = db.get(User, user_id)
+            if user is None:  # pragma: no cover - constraint other than the PK
+                raise
+            return user
         db.refresh(user)
     return user
 
@@ -83,10 +93,19 @@ def get_current_user(
             algorithms=algorithms,
             audience=settings.supabase_jwt_aud,
         )
+    except jwt.exceptions.PyJWKClientConnectionError as exc:
+        # Couldn't reach the JWKS endpoint — an infra problem, not a bad token.
+        raise HTTPException(
+            status_code=503, detail="Authentication temporarily unavailable — try again."
+        ) from exc
     except jwt.PyJWTError as exc:
         raise HTTPException(status_code=401, detail=f"Invalid token: {exc}") from exc
 
     sub = payload.get("sub")
     if not sub:
         raise HTTPException(status_code=401, detail="Token missing 'sub' claim.")
-    return get_or_create_user(db, uuid.UUID(str(sub)), payload.get("email", ""))
+    try:
+        user_id = uuid.UUID(str(sub))
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="Token 'sub' is not a valid user id.") from exc
+    return get_or_create_user(db, user_id, payload.get("email", ""))

@@ -11,6 +11,7 @@ from app.auth import get_current_user
 from app.backtesting.engine import run_backtest
 from app.backtesting.schemas import BacktestRequest
 from app.config import get_settings
+from app.data.freshness import ensure_fresh
 from app.db import get_db
 from app.models import SavedBacktest, User
 from app.usage import monthly_count
@@ -55,6 +56,8 @@ def create_backtest(
             ),
         )
 
+    if settings.data_auto_refresh:
+        ensure_fresh(req.symbol, req.interval)
     try:
         result = run_backtest(
             symbol=req.symbol,

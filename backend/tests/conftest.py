@@ -20,6 +20,8 @@ os.environ["AUTH_DEV_MODE"] = "true"
 # Don't let the /backtest rate limiter throttle the suite (all TestClient calls
 # share one client IP). Rate-limit behavior is covered by a focused unit test.
 os.environ["BACKTEST_RATE_LIMIT"] = "100000"
+# The suite runs on seeded synthetic candles — never top up from Binance.
+os.environ["DATA_AUTO_REFRESH"] = "false"
 # Ensure billing is OFF by default (individual tests opt in via monkeypatch).
 # Set to empty rather than popping: an explicit env var overrides any value in a
 # developer's local backend/.env, so the suite stays hermetic once real keys exist.

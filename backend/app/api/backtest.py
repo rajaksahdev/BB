@@ -1,11 +1,16 @@
-"""Backtest API: list strategies and run a backtest (FR-02, FR-03)."""
+"""Backtest API: list strategies/symbols and run a backtest (FR-02, FR-03)."""
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.backtesting.engine import run_backtest
 from app.backtesting.schemas import BacktestRequest
 from app.backtesting.strategies import STRATEGIES
 from app.config import get_settings
+from app.data.freshness import ensure_fresh
+from app.db import get_db
+from app.models import Candle
 from app.ratelimit import RateLimiter
 
 router = APIRouter(tags=["backtest"])
@@ -32,9 +37,25 @@ def list_strategies() -> list[dict]:
     ]
 
 
+@router.get("/symbols")
+def list_symbols(db: Session = Depends(get_db)) -> dict:
+    """Pairs/intervals that actually have candle data (powers the UI selects).
+
+    Derived from the candles table so adding a coin is a backfill run — no
+    frontend deploy needed.
+    """
+    symbols = db.scalars(select(Candle.symbol).distinct().order_by(Candle.symbol)).all()
+    intervals = db.scalars(
+        select(Candle.interval).distinct().order_by(Candle.interval)
+    ).all()
+    return {"symbols": list(symbols), "intervals": list(intervals)}
+
+
 @router.post("/backtest", dependencies=[Depends(_backtest_limiter)])
 def post_backtest(req: BacktestRequest) -> dict:
     """Run a backtest synchronously and return stats + equity curve."""
+    if _settings.data_auto_refresh:
+        ensure_fresh(req.symbol, req.interval)
     try:
         return run_backtest(
             symbol=req.symbol,

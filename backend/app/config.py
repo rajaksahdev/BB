@@ -31,6 +31,9 @@ class Settings(BaseSettings):
 
     # Market data (Phase 1)
     binance_base_url: str = "https://api.binance.com"
+    # Lazily top up stale candles from Binance before running a backtest (no
+    # cron on the free hosting tier). Off in tests, which seed synthetic data.
+    data_auto_refresh: bool = True
 
     # Auth (Phase 3 — Supabase). Two verification modes:
     #  - supabase_url set: fetch the project's public JWKS and verify ES256/RS256
