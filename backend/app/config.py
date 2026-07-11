@@ -29,8 +29,10 @@ class Settings(BaseSettings):
         "postgresql+psycopg://backtestlab:backtestlab@localhost:5432/backtestlab"
     )
 
-    # Market data (Phase 1)
-    binance_base_url: str = "https://api.binance.com"
+    # Market data (Phase 1). Default is Binance's public market-data mirror:
+    # unlike api.binance.com it is not geo-blocked (451) for US cloud IPs,
+    # which is where Render runs — the API only ever fetches public klines.
+    binance_base_url: str = "https://data-api.binance.vision"
     # Lazily top up stale candles from Binance before running a backtest (no
     # cron on the free hosting tier). Off in tests, which seed synthetic data.
     data_auto_refresh: bool = True
