@@ -24,6 +24,7 @@ import StatsPanel from "./components/StatsPanel";
 import AuthBar from "./components/AuthBar";
 import SavedList from "./components/SavedList";
 import Landing from "./components/Landing";
+import Legal from "./components/Legal";
 import TradesTable from "./components/TradesTable";
 import EquityChart, { type EquitySeries } from "./components/EquityChart";
 import { colorForIndex } from "./chartColors";
@@ -50,6 +51,14 @@ const RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 45_000];
 
 type ApiStatus = "connecting" | "waking" | "up" | "down";
 
+type View = "landing" | "app" | "terms" | "refunds";
+
+function viewForPath(pathname: string): View | null {
+  if (pathname === "/terms") return "terms";
+  if (pathname === "/refunds") return "refunds";
+  return null;
+}
+
 export default function App() {
   const auth = useAuth();
   const signedIn = !!auth.token;
@@ -70,11 +79,30 @@ export default function App() {
   const [nextId, setNextId] = useState(1);
   const [savedReload, setSavedReload] = useState(0);
   const [billingEnabled, setBillingEnabled] = useState(false);
-  // Show the marketing landing first, unless we're returning from checkout.
-  const [view, setView] = useState<"landing" | "app">(() => {
+  // Show the marketing landing first, unless we're returning from checkout or
+  // landing directly on a legal page (/terms, /refunds — the static host
+  // rewrites every path to index.html).
+  const [view, setView] = useState<View>(() => {
+    const legal = viewForPath(window.location.pathname);
+    if (legal) return legal;
     const p = new URLSearchParams(window.location.search);
     return p.get("checkout") || p.get("portal") ? "app" : "landing";
   });
+
+  // Legal pages get real URLs (payment reviews require linkable terms/refund
+  // pages); the landing/app switch stays at "/" as before.
+  function navigate(next: View) {
+    const path = next === "terms" ? "/terms" : next === "refunds" ? "/refunds" : "/";
+    if (window.location.pathname !== path) window.history.pushState({}, "", path);
+    setView(next);
+    window.scrollTo(0, 0);
+  }
+
+  useEffect(() => {
+    const onPop = () => setView(viewForPath(window.location.pathname) ?? "landing");
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -264,7 +292,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <button className="brand" onClick={() => setView("landing")} title="Home">
+        <button className="brand" onClick={() => navigate("landing")} title="Home">
           <h1>BacktestLab</h1>
           <p className="tagline">
             Backtest crypto strategies on real Binance history — no code, no custody.
@@ -291,10 +319,37 @@ export default function App() {
         </div>
       )}
 
-      {view === "landing" ? <Landing onLaunch={() => setView("app")} /> : AppLab()}
+      {view === "landing" ? (
+        <Landing onLaunch={() => navigate("app")} />
+      ) : view === "terms" || view === "refunds" ? (
+        <Legal page={view} onBack={() => navigate("landing")} />
+      ) : (
+        AppLab()
+      )}
 
       <footer className="app-footer">
         <p className="footer-disclaimer">{DISCLAIMER_SHORT}</p>
+        <p className="footer-links">
+          <a
+            href="/terms"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate("terms");
+            }}
+          >
+            Terms of Service
+          </a>
+          {" · "}
+          <a
+            href="/refunds"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate("refunds");
+            }}
+          >
+            Refund Policy
+          </a>
+        </p>
         <p className="footer-meta">
           BacktestLab · research tool · data from Binance public API
         </p>
