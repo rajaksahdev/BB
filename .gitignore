@@ -12,6 +12,9 @@ venv/
 .env
 .env.*
 !.env.example
+# Local Claude Code permission grants — accumulates command lines that can
+# embed API keys/connection strings; never commit it.
+.claude/settings.local.json
 
 # Node / frontend
 node_modules/

@@ -1,0 +1,13 @@
+# Gitleaks config (CI secret scan — see .github/workflows/ci.yml).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Paths that must never be committed anyway (gitignored) or are placeholders"
+paths = [
+  # Local Claude Code permission grants; gitignored after the 2026-07 leak
+  # (the values it once held are rotated/burned).
+  '''\.claude/settings\.local\.json''',
+  # Example env file holds placeholder values only.
+  '''backend/\.env\.example''',
+]

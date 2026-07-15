@@ -8,6 +8,18 @@ on:
   pull_request:
 
 jobs:
+  # Secrets must never reach the repo again (a Render key + DB password were
+  # leaked once via a tracked local-settings file; those values are rotated).
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks scans the commit range of the push/PR
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   backend:
     runs-on: ubuntu-latest
     defaults:
