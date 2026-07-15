@@ -5,12 +5,26 @@ Strategy class) and ``META`` (name, description, tunable params for the UI).
 Adding a strategy = adding one file + listing it here.
 """
 
-from app.backtesting.strategies import dca, grid, ma_crossover, rsi_reversion
+from app.backtesting.strategies import (
+    bollinger,
+    dca,
+    grid,
+    ma_crossover,
+    macd,
+    rsi_reversion,
+)
 
-_MODULES = [ma_crossover, rsi_reversion, dca, grid]
+_MODULES = [ma_crossover, macd, rsi_reversion, bollinger, dca, grid]
 
 STRATEGIES: dict[str, dict] = {
-    mod.META["key"]: {"class": mod.STRATEGY, "meta": mod.META} for mod in _MODULES
+    mod.META["key"]: {
+        "class": mod.STRATEGY,
+        "meta": mod.META,
+        # Optional cross-param check, e.g. fast < slow (single-param bounds
+        # are enforced generically by the engine).
+        "validate": getattr(mod, "validate", None),
+    }
+    for mod in _MODULES
 }
 
 __all__ = ["STRATEGIES"]

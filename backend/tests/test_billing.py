@@ -79,6 +79,46 @@ def test_webhook_expired_downgrades_to_free(client, monkeypatch):
     assert _tier(uid) == "free"
 
 
+def test_webhook_replay_does_not_reapply(client, monkeypatch):
+    """An identical redelivered payload must be a no-op (idempotency ledger)."""
+    s = _enable_billing(monkeypatch)
+    uid = _make_user()
+    created = _sub_event("subscription_created", "active", uid, "sub_1", "cust_1")
+    _post_signed(client, s, created)
+    _post_signed(client, s, _sub_event("subscription_expired", "expired", uid, "sub_1", "cust_1"))
+    assert _tier(uid) == "free"
+    # Provider retries the original created event: must NOT re-upgrade.
+    r = _post_signed(client, s, created)
+    assert r.json().get("duplicate") is True
+    assert _tier(uid) == "free"
+
+
+def test_payment_success_invoice_does_not_downgrade(client, monkeypatch):
+    """subscription_payment_success carries an invoice whose status ('paid') is
+    not a subscription status — it must never be mapped onto the tier."""
+    s = _enable_billing(monkeypatch)
+    uid = _make_user()
+    _post_signed(client, s, _sub_event("subscription_created", "active", uid, "sub_1", "cust_1"))
+    _post_signed(
+        client, s, _invoice_event("subscription_payment_success", "paid", uid, "sub_1", "cust_1")
+    )
+    assert _tier(uid) == "pro"
+
+
+def test_payment_failed_keeps_access_until_status_change(client, monkeypatch):
+    """A failed payment alone doesn't downgrade (grace period); the follow-up
+    subscription_updated with status 'unpaid' does."""
+    s = _enable_billing(monkeypatch)
+    uid = _make_user()
+    _post_signed(client, s, _sub_event("subscription_created", "active", uid, "sub_1", "cust_1"))
+    _post_signed(
+        client, s, _invoice_event("subscription_payment_failed", "pending", uid, "sub_1", "cust_1")
+    )
+    assert _tier(uid) == "pro"
+    _post_signed(client, s, _sub_event("subscription_updated", "unpaid", uid, "sub_1", "cust_1"))
+    assert _tier(uid) == "free"
+
+
 def test_handle_event_unknown_user_is_ignored():
     # Should not raise even when no local user matches the event.
     with SessionLocal() as db:
@@ -107,7 +147,27 @@ def _sub_event(name: str, status: str, user_id, sub_id: str, customer_id: str) -
     """Shape a Lemon Squeezy subscription webhook payload."""
     return {
         "meta": {"event_name": name, "custom_data": {"user_id": str(user_id)}},
-        "data": {"id": sub_id, "attributes": {"status": status, "customer_id": customer_id}},
+        "data": {
+            "type": "subscriptions",
+            "id": sub_id,
+            "attributes": {"status": status, "customer_id": customer_id},
+        },
+    }
+
+
+def _invoice_event(name: str, invoice_status: str, user_id, sub_id: str, customer_id: str) -> dict:
+    """Shape a subscription_payment_* payload (carries an INVOICE object)."""
+    return {
+        "meta": {"event_name": name, "custom_data": {"user_id": str(user_id)}},
+        "data": {
+            "type": "subscription-invoices",
+            "id": "inv_1",
+            "attributes": {
+                "status": invoice_status,
+                "subscription_id": sub_id,
+                "customer_id": customer_id,
+            },
+        },
     }
 
 

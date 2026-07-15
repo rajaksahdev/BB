@@ -120,7 +120,9 @@ def _clean_user_tables():
     from sqlalchemy import text
 
     with SessionLocal() as db:
-        db.execute(text("TRUNCATE saved_backtests, users RESTART IDENTITY CASCADE"))
+        db.execute(
+            text("TRUNCATE saved_backtests, users, billing_events RESTART IDENTITY CASCADE")
+        )
         db.commit()
     yield
 

@@ -57,6 +57,11 @@ class Settings(BaseSettings):
     backtest_rate_limit: int = 20
     backtest_rate_window: float = 60.0
 
+    # Hard cap on simultaneous engine simulations (they are CPU-bound and
+    # GIL-contending; a pile-up would stall every request, /health included).
+    # Excess runs get a 429 and retry rather than queueing unboundedly.
+    backtest_max_concurrency: int = 3
+
     # Billing (Phase 5 — Lemon Squeezy, a Merchant of Record). Chosen over Stripe
     # so we skip business verification to launch and let the provider handle
     # global sales tax/VAT. Empty == billing disabled; endpoints 503 and the

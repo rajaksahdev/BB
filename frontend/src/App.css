@@ -439,6 +439,16 @@
   box-shadow: 0 0 14px -6px rgba(79, 124, 255, 0.6);
 }
 
+.param-warning {
+  font-size: 12.5px;
+  color: var(--neg);
+  background: rgba(255, 92, 122, 0.08);
+  border: 1px solid rgba(255, 92, 122, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  line-height: 1.45;
+}
+
 .strategy-desc {
   font-size: 13px;
   color: var(--text-dim);
@@ -725,6 +735,67 @@
   opacity: 0.6;
   cursor: default;
 }
+.usage-chip {
+  display: inline-block;
+  margin-left: 9px;
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  vertical-align: 2px;
+}
+.usage-chip.full {
+  color: var(--neg);
+  border-color: rgba(255, 92, 122, 0.35);
+  background: rgba(255, 92, 122, 0.08);
+}
+
+.equity-chart-wrap {
+  position: relative;
+}
+.chart-export-btn {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 3px 9px;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.15s, color 0.15s;
+}
+.chart-export-btn:hover {
+  opacity: 1;
+  color: var(--text);
+}
+
+.share-btn {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 4px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.share-btn:hover {
+  color: var(--text);
+  background: var(--surface);
+}
 .saved-badge {
   display: inline-flex;
   align-items: center;
@@ -880,6 +951,99 @@
 .stat-hint.neg {
   color: var(--neg);
 }
+/* Plain-English verdict above the stat cards. */
+.verdict {
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.45;
+  padding: 9px 12px;
+  margin-bottom: 11px;
+  border-radius: var(--radius-sm);
+}
+.verdict.pos {
+  color: var(--pos);
+  background: var(--pos-weak);
+  border: 1px solid rgba(47, 224, 138, 0.3);
+}
+.verdict.neg {
+  color: var(--neg);
+  background: rgba(255, 92, 122, 0.08);
+  border: 1px solid rgba(255, 92, 122, 0.3);
+}
+
+/* Collapsible advanced-metrics strip under the headline stat cards. */
+.more-stats {
+  margin-top: 11px;
+}
+.more-stats summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  user-select: none;
+}
+.more-stats summary:hover {
+  color: var(--text);
+}
+.more-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 9px;
+  margin-top: 10px;
+}
+@media (max-width: 460px) {
+  .more-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.mini-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.mini-stat-value {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.mini-stat-value.pos {
+  color: var(--pos);
+}
+.mini-stat-value.neg {
+  color: var(--neg);
+}
+
+.forced-exit-note {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 12px;
+  padding: 7px 10px;
+  background: var(--surface-2);
+  border-left: 2px solid var(--accent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  line-height: 1.45;
+}
+.eod-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  vertical-align: 1px;
+}
+
 .assumptions-line {
   font-size: 12px;
   color: var(--muted);

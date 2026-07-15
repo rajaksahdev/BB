@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "absolute-ui": {
+      "source": "absolutelyskilled/absolutelyskilled",
+      "sourceType": "github",
+      "skillPath": "skills/absolute-ui/SKILL.md",
+      "computedHash": "1f3e8337149647bd02555ba416ba67aa171205d605b37723b963b7b60a4efc48"
+    }
+  }
+}

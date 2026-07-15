@@ -23,6 +23,14 @@ class MaCrossover(Strategy):
             self.position.close()
 
 
+def validate(params: dict) -> None:
+    if params["fast"] >= params["slow"]:
+        raise ValueError(
+            f"'fast' MA period ({params['fast']}) must be less than "
+            f"'slow' ({params['slow']}) — otherwise the crossover logic inverts."
+        )
+
+
 STRATEGY = MaCrossover
 
 META = {

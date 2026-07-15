@@ -101,5 +101,33 @@ export default function EquityChart({ series }: { series: EquitySeries[] }) {
     chart.timeScale().fitContent();
   }, [series]);
 
-  return <div ref={containerRef} className="equity-chart" />;
+  // FR-09: one-click PNG export of the rendered chart.
+  function exportPng() {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const canvas = chart.takeScreenshot();
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `backtestlab-equity-${new Date().toISOString().slice(0, 10)}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  return (
+    <div className="equity-chart-wrap">
+      <div ref={containerRef} className="equity-chart" />
+      <button
+        type="button"
+        className="chart-export-btn"
+        onClick={exportPng}
+        title="Download the chart as a PNG image"
+      >
+        PNG ↓
+      </button>
+    </div>
+  );
 }

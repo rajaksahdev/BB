@@ -11,6 +11,7 @@ import {
   type BacktestRequest,
   type Strategy,
 } from "../api";
+import type { SharedConfig } from "../share";
 
 interface Props {
   strategies: Strategy[];
@@ -19,6 +20,8 @@ interface Props {
   /** Pairs/intervals with data (from GET /symbols); defaults cover offline dev. */
   symbols?: readonly string[];
   intervals?: readonly string[];
+  /** Prefill from a share link (see share.ts). */
+  initial?: SharedConfig;
 }
 
 const INTERVAL_LABELS: Record<string, string> = { "1d": "Daily", "1h": "Hourly" };
@@ -41,6 +44,28 @@ const monthsAgo = (n: number) => {
 };
 const yearStart = (y: number) => new Date(Date.UTC(y, 0, 1));
 
+/** Returning users pick up where they left off (share links take precedence). */
+const STORAGE_KEY = "backtestlab.lastConfig";
+
+interface StoredConfig {
+  symbol?: string;
+  interval?: string;
+  strategyKey?: string;
+  periodKey?: string;
+  cash?: number;
+  feePct?: number;
+  slippagePct?: number;
+  paramValues?: Record<string, Record<string, number>>;
+}
+
+function loadStoredConfig(): StoredConfig {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}") as StoredConfig;
+  } catch {
+    return {};
+  }
+}
+
 const THIS_YEAR = new Date().getUTCFullYear();
 const PERIODS: Period[] = [
   { key: "all", label: "All history", short: "All", range: () => ({}) },
@@ -61,17 +86,35 @@ export default function StrategyForm({
   onRun,
   symbols = SYMBOLS,
   intervals = INTERVALS,
+  initial,
 }: Props) {
-  const [symbol, setSymbol] = useState<string>(symbols[0]);
-  const [interval, setInterval] = useState<string>(intervals[0]);
-  const [strategyKey, setStrategyKey] = useState<string>(strategies[0]?.key ?? "");
-  const [periodKey, setPeriodKey] = useState<string>("all");
-  const [cash, setCash] = useState<number>(10_000);
-  const [feePct, setFeePct] = useState<number>(0.1); // shown as %, sent as fraction
-  const [slippagePct, setSlippagePct] = useState<number>(0.05);
+  const [stored] = useState<StoredConfig>(initial ? {} : loadStoredConfig);
+  const [symbol, setSymbol] = useState<string>(initial?.symbol ?? stored.symbol ?? symbols[0]);
+  const [interval, setInterval] = useState<string>(
+    initial?.interval ?? stored.interval ?? intervals[0],
+  );
+  const [strategyKey, setStrategyKey] = useState<string>(() => {
+    for (const key of [initial?.strategy, stored.strategyKey]) {
+      if (key && strategies.some((s) => s.key === key)) return key;
+    }
+    return strategies[0]?.key ?? "";
+  });
+  const [periodKey, setPeriodKey] = useState<string>(
+    PERIODS.some((p) => p.key === stored.periodKey) ? stored.periodKey! : "all",
+  );
+  const [cash, setCash] = useState<number>(initial?.cash ?? stored.cash ?? 10_000);
+  const [feePct, setFeePct] = useState<number>(initial?.feePct ?? stored.feePct ?? 0.1); // shown as %, sent as fraction
+  const [slippagePct, setSlippagePct] = useState<number>(
+    initial?.slippagePct ?? stored.slippagePct ?? 0.05,
+  );
 
   // Per-strategy param values, keyed by strategy then param name.
-  const [paramValues, setParamValues] = useState<Record<string, Record<string, number>>>({});
+  const [paramValues, setParamValues] = useState<Record<string, Record<string, number>>>(() => {
+    if (initial && Object.keys(initial.params).length > 0) {
+      return { [initial.strategy]: initial.params };
+    }
+    return stored.paramValues ?? {};
+  });
 
   const strategy = useMemo(
     () => strategies.find((s) => s.key === strategyKey),
@@ -95,9 +138,28 @@ export default function StrategyForm({
     }));
   }
 
+  // Mirror the backend's cross-param rule so the user gets instant feedback
+  // instead of a 400 after the round-trip.
+  const paramWarning =
+    "fast" in currentParams &&
+    "slow" in currentParams &&
+    Number(currentParams.fast) >= Number(currentParams.slow)
+      ? "Fast period must be below slow — as set, the crossover logic inverts."
+      : null;
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!strategy) return;
+    if (!strategy || paramWarning) return;
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          symbol, interval, strategyKey, periodKey, cash, feePct, slippagePct, paramValues,
+        } satisfies StoredConfig),
+      );
+    } catch {
+      /* storage may be unavailable (private mode) — running still works */
+    }
     const period = PERIODS.find((p) => p.key === periodKey) ?? PERIODS[0];
     onRun(
       {
@@ -105,7 +167,7 @@ export default function StrategyForm({
         interval,
         strategy: strategy.key,
         params: currentParams,
-        cash,
+        cash: Math.max(1, cash || 0), // a cleared input parses to 0/NaN
         fee_pct: feePct / 100,
         slippage_pct: slippagePct / 100,
         ...period.range(),
@@ -193,6 +255,8 @@ export default function StrategyForm({
           </label>
         ))}
 
+      {paramWarning && <p className="param-warning">{paramWarning}</p>}
+
       <fieldset className="cost-assumptions">
         <legend>Cost assumptions</legend>
         <div className="field-row">
@@ -231,7 +295,7 @@ export default function StrategyForm({
         </div>
       </fieldset>
 
-      <button type="submit" className="run-btn" disabled={busy || !strategy}>
+      <button type="submit" className="run-btn" disabled={busy || !strategy || !!paramWarning}>
         {busy ? (
           <>
             <span className="btn-spinner" aria-hidden="true" /> Running…

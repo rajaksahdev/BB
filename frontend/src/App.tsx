@@ -19,6 +19,7 @@ import {
   type Strategy,
 } from "./api";
 import { useAuth } from "./useAuth";
+import { parseSharedConfig, sharedToRequest, shareUrlForResult } from "./share";
 import StrategyForm from "./components/StrategyForm";
 import StatsPanel from "./components/StatsPanel";
 import AuthBar from "./components/AuthBar";
@@ -79,12 +80,16 @@ export default function App() {
   const [nextId, setNextId] = useState(1);
   const [savedReload, setSavedReload] = useState(0);
   const [billingEnabled, setBillingEnabled] = useState(false);
-  // Show the marketing landing first, unless we're returning from checkout or
-  // landing directly on a legal page (/terms, /refunds — the static host
-  // rewrites every path to index.html).
+  // A share link carries the full run config in the querystring; parse it
+  // once so the lab can prefill the form and (autorun) re-execute the run.
+  const [shared] = useState(() => parseSharedConfig(window.location.search));
+  // Show the marketing landing first, unless we're returning from checkout,
+  // following a share link, or landing directly on a legal page (/terms,
+  // /refunds — the static host rewrites every path to index.html).
   const [view, setView] = useState<View>(() => {
     const legal = viewForPath(window.location.pathname);
     if (legal) return legal;
+    if (parseSharedConfig(window.location.search)) return "app";
     const p = new URLSearchParams(window.location.search);
     return p.get("checkout") || p.get("portal") ? "app" : "landing";
   });
@@ -144,6 +149,28 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+
+  // Auto-run a shared config once the strategy catalog is loaded, then clean
+  // the URL so a refresh doesn't re-run it.
+  const sharedRunDone = useRef(false);
+  useEffect(() => {
+    if (!shared?.autorun || sharedRunDone.current || strategies.length === 0) return;
+    if (!strategies.some((s) => s.key === shared.strategy)) return; // stale link
+    sharedRunDone.current = true;
+    window.history.replaceState({}, "", "/");
+    void handleRun(sharedToRequest(shared), "shared link");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [strategies, shared]);
+
+  async function handleShare(run: Run) {
+    const url = shareUrlForResult(run.result);
+    try {
+      await navigator.clipboard.writeText(url);
+      setNotice({ kind: "info", text: "Share link copied — anyone opening it reruns this exact backtest." });
+    } catch {
+      window.prompt("Copy this share link:", url);
+    }
+  }
 
   // Keep a stable handle to the latest refreshMe so the run-once mount effect
   // below can call it without taking `auth` as a dependency.
@@ -388,6 +415,7 @@ export default function App() {
                 intervals={intervals}
                 busy={busy}
                 onRun={handleRun}
+                initial={shared ?? undefined}
               />
             ) : (
               !loadErr && <p className="muted">Loading strategies…</p>
@@ -396,7 +424,17 @@ export default function App() {
           </section>
 
           <section className="panel saved-panel">
-            <h2>Saved backtests</h2>
+            <h2>
+              Saved backtests
+              {signedIn && auth.me && auth.me.monthly_limit !== null && (
+                <span
+                  className={`usage-chip${(auth.me.remaining ?? 0) === 0 ? " full" : ""}`}
+                  title="Free-tier saved backtests this month; Pro is unlimited"
+                >
+                  {auth.me.usage_this_month}/{auth.me.monthly_limit} this month
+                </span>
+              )}
+            </h2>
             <SavedList
               signedIn={signedIn}
               reloadKey={savedReload}
@@ -465,6 +503,13 @@ export default function App() {
                         <span className="swatch" style={{ background: r.color }} />
                         {r.label}
                       </h3>
+                      <button
+                        className="share-btn"
+                        onClick={() => handleShare(r)}
+                        title="Copy a link that reruns this exact backtest"
+                      >
+                        Share
+                      </button>
                       {r.savedId ? (
                         <span className="saved-badge">
                           <svg

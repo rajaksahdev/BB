@@ -36,6 +36,17 @@ export interface Stats {
   exposure_time_pct: number | null;
   starting_cash: number;
   final_equity: number;
+  // Extended metrics (absent on backtests saved before they were added).
+  sortino_ratio?: number | null;
+  calmar_ratio?: number | null;
+  cagr_pct?: number | null;
+  volatility_ann_pct?: number | null;
+  profit_factor?: number | null;
+  avg_trade_pct?: number | null;
+  best_trade_pct?: number | null;
+  worst_trade_pct?: number | null;
+  /** Trades force-closed at the end of the data window (not strategy exits). */
+  forced_exit_count?: number;
 }
 
 export interface EquityPoint {
@@ -50,6 +61,8 @@ export interface Trade {
   exit_price: number | null;
   pnl: number;
   return_pct: number;
+  /** "signal" = strategy exit; "end_of_data" = force-closed when data ended. */
+  exit_reason?: "signal" | "end_of_data";
 }
 
 export interface Assumptions {

@@ -5,6 +5,7 @@ endpoints return 503 and ``/billing/config`` reports ``enabled: false`` so the
 frontend can hide upgrade UI.
 """
 
+import hashlib
 import json
 import logging
 
@@ -16,7 +17,7 @@ from app import billing
 from app.auth import get_current_user
 from app.config import get_settings
 from app.db import get_db
-from app.models import User
+from app.models import BillingEvent, User
 
 logger = logging.getLogger("backtestlab.billing")
 settings = get_settings()
@@ -82,5 +83,19 @@ async def webhook(request: Request, db: Session = Depends(get_db)) -> dict:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=f"Invalid webhook payload: {exc}") from exc
 
+    # Idempotency: provider retries resend the identical body, so a payload
+    # hash we've already processed must not re-apply tier changes.
+    digest = hashlib.sha256(payload).hexdigest()
+    if db.get(BillingEvent, digest) is not None:
+        logger.info("Duplicate webhook delivery ignored (%s).", digest[:12])
+        return {"received": True, "duplicate": True}
+    db.add(
+        BillingEvent(
+            id=digest,
+            event_name=(event.get("meta") or {}).get("event_name", "")[:80],
+        )
+    )
+
     billing.handle_event(db, event)
+    db.commit()  # persists the ledger row (and any tier change) atomically
     return {"received": True}

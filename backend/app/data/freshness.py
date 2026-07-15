@@ -35,8 +35,15 @@ _INTERVAL_STALENESS: dict[str, timedelta] = {
 # round-trip per pair per window at most, even under request bursts.
 _CHECK_EVERY_SECONDS = 15 * 60
 
+# Mildly stale data (≤ this many staleness-thresholds old) is topped up in a
+# BACKGROUND thread so Binance never adds latency to the user's request; only
+# grossly stale data (API slept for days — results would be materially wrong)
+# blocks the request while it fetches.
+_MILD_STALENESS_FACTOR = 3
+
 _lock = threading.Lock()
 _last_check: dict[tuple[str, str], float] = {}
+_inflight: set[tuple[str, str]] = set()
 
 
 def ensure_fresh(symbol: str, interval: str) -> None:
@@ -69,8 +76,14 @@ def ensure_fresh(symbol: str, interval: str) -> None:
             latest = latest.replace(tzinfo=UTC)
 
         now = datetime.now(tz=UTC)
-        if now - latest <= threshold:
+        age = now - latest
+        if age <= threshold:
             return
+
+        with _lock:
+            if key in _inflight:  # a fetch for this pair is already running
+                return
+            _inflight.add(key)
 
         logger.info(
             "Candles for %s %s stale (newest %s) — topping up from Binance.",
@@ -78,6 +91,23 @@ def ensure_fresh(symbol: str, interval: str) -> None:
             interval,
             latest.isoformat(),
         )
-        backfill(symbol, interval, start=latest, end=now)
+        if age <= threshold * _MILD_STALENESS_FACTOR:
+            # Serve this request on the (acceptably) stale data immediately;
+            # the top-up lands for the next run.
+            threading.Thread(
+                target=_topup, args=(key, symbol, interval, latest, now), daemon=True
+            ).start()
+        else:
+            _topup(key, symbol, interval, latest, now)
     except Exception:  # noqa: BLE001 - stale data beats a failed request
         logger.exception("Candle top-up failed for %s %s", symbol, interval)
+
+
+def _topup(key: tuple[str, str], symbol: str, interval: str, start, end) -> None:
+    try:
+        backfill(symbol, interval, start=start, end=end)
+    except Exception:  # noqa: BLE001
+        logger.exception("Candle top-up failed for %s %s", symbol, interval)
+    finally:
+        with _lock:
+            _inflight.discard(key)

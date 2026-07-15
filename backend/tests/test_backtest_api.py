@@ -4,7 +4,7 @@ import pytest
 
 from tests.conftest import EMPTY_SYMBOL, backtest_body
 
-STRATEGY_KEYS = ["ma_crossover", "rsi_reversion", "dca", "grid"]
+STRATEGY_KEYS = ["ma_crossover", "macd", "rsi_reversion", "bollinger", "dca", "grid"]
 
 
 def test_health_reports_db_up(client):
@@ -38,12 +38,22 @@ def test_backtest_returns_stats_curve_and_disclaimer(client):
         "win_rate_pct",
         "max_drawdown_pct",
         "sharpe_ratio",
+        "sortino_ratio",
+        "cagr_pct",
+        "profit_factor",
+        "best_trade_pct",
+        "worst_trade_pct",
         "trade_count",
     ):
         assert key in stats
 
     assert len(body["equity_curve"]) > 1
     assert body["equity_curve"][0].keys() >= {"time", "equity"}
+    # The curve's final point matches the reported final equity (no
+    # downsampling drop-off).
+    assert body["equity_curve"][-1]["equity"] == pytest.approx(
+        stats["final_equity"], rel=0.01
+    )
     # Honest-backtest guardrail: fees + slippage modeled and disclosed.
     assert body["assumptions"]["fee_pct"] == 0.001
     assert body["assumptions"]["slippage_pct"] == 0.0005
@@ -69,6 +79,13 @@ def test_unknown_param_is_400(client):
 def test_unknown_strategy_is_400(client):
     r = client.post("/backtest", json=backtest_body(strategy="does_not_exist"))
     assert r.status_code == 400
+
+
+def test_inverted_ma_periods_is_400(client):
+    # fast must stay below slow or the crossover logic silently inverts.
+    r = client.post("/backtest", json=backtest_body(params={"fast": 80, "slow": 20}))
+    assert r.status_code == 400
+    assert "fast" in r.json()["detail"].lower()
 
 
 def test_param_out_of_range_is_400(client):

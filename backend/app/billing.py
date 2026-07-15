@@ -168,6 +168,24 @@ def handle_event(db: Session, event: dict) -> None:
         logger.debug("Unhandled Lemon Squeezy event: %s", event_name)
         return
 
+    # subscription_payment_* events carry a subscription-INVOICE object whose
+    # `status` is an invoice status ("paid", "pending", …) — mapping that onto
+    # subscription statuses would mis-flip tiers (a successful renewal would
+    # read as "not pro"). Tier changes come only from true subscription
+    # objects; the eventual past_due/unpaid/expired status arrives via
+    # subscription_updated / subscription_expired and downgrades there.
+    if data.get("type") != "subscriptions":
+        if event_name == "subscription_payment_failed":
+            logger.warning(
+                "Payment failed for subscription %s (customer %s) — user keeps "
+                "access until the subscription status changes.",
+                attrs.get("subscription_id"),
+                attrs.get("customer_id"),
+            )
+        else:
+            logger.info("Ignoring non-subscription-object event: %s", event_name)
+        return
+
     user_id = (meta.get("custom_data") or {}).get("user_id")
     sub_id = data.get("id")
     customer_id = attrs.get("customer_id")

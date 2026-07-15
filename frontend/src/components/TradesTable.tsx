@@ -40,7 +40,14 @@ export default function TradesTable({ trades }: Props) {
             {trades.map((t, i) => (
               <tr key={i}>
                 <td>{fmtTime(t.entry_time)}</td>
-                <td>{fmtTime(t.exit_time)}</td>
+                <td>
+                  {fmtTime(t.exit_time)}
+                  {t.exit_reason === "end_of_data" && (
+                    <span className="eod-tag" title="Force-closed when the data window ended, not a strategy exit">
+                      end of data
+                    </span>
+                  )}
+                </td>
                 <td className="num">{fmtPrice(t.entry_price)}</td>
                 <td className="num">{fmtPrice(t.exit_price)}</td>
                 <td className={`num ${t.pnl >= 0 ? "pos" : "neg"}`}>

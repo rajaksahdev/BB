@@ -22,6 +22,14 @@ const RESULT: BacktestResult = {
     exposure_time_pct: 54.9,
     starting_cash: 10000,
     final_equity: 19640,
+    sortino_ratio: 1.12,
+    calmar_ratio: 0.66,
+    cagr_pct: 25.3,
+    volatility_ann_pct: 41.7,
+    profit_factor: 1.85,
+    avg_trade_pct: 3.6,
+    best_trade_pct: 42.1,
+    worst_trade_pct: -12.4,
   },
   equity_curve: [],
   trades: [],
@@ -46,6 +54,19 @@ describe("StatsPanel", () => {
     render(<StatsPanel result={RESULT} />);
     expect(screen.getByText(/0\.10% fee/)).toBeInTheDocument();
     expect(screen.getByText(/0\.05% slippage/)).toBeInTheDocument();
+  });
+
+  it("renders the extended metrics when present", () => {
+    render(<StatsPanel result={RESULT} />);
+    expect(screen.getByText("More metrics")).toBeInTheDocument();
+    expect(screen.getByText("1.85")).toBeInTheDocument(); // profit factor
+    expect(screen.getByText("+25.30%")).toBeInTheDocument(); // CAGR
+  });
+
+  it("hides the extended section for saved rows that predate it", () => {
+    const legacy = { ...RESULT, stats: { ...RESULT.stats, cagr_pct: undefined } };
+    render(<StatsPanel result={legacy} />);
+    expect(screen.queryByText("More metrics")).not.toBeInTheDocument();
   });
 
   it("renders an em-dash for missing (null) metrics", () => {

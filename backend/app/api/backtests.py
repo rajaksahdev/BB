@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
-from app.backtesting.engine import run_backtest
+from app.backtesting.engine import EngineBusy, run_backtest
 from app.backtesting.schemas import BacktestRequest
 from app.config import get_settings
 from app.data.freshness import ensure_fresh
@@ -70,6 +70,10 @@ def create_backtest(
             fee_pct=req.fee_pct,
             slippage_pct=req.slippage_pct,
         )
+    except EngineBusy as exc:
+        raise HTTPException(
+            status_code=429, detail=str(exc), headers={"Retry-After": "5"}
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

@@ -28,6 +28,25 @@ def test_rate_limiter_blocks_after_limit():
     assert "Retry-After" in exc.value.headers
 
 
+def test_engine_busy_returns_429(client, monkeypatch):
+    """When every engine slot is taken, /backtest answers 429 + Retry-After
+    instead of queueing unboundedly on the GIL."""
+    from app.backtesting import engine
+
+    class Exhausted:
+        def acquire(self, timeout=None):
+            return False
+
+        def release(self):  # pragma: no cover - never acquired
+            pass
+
+    monkeypatch.setattr(engine, "_run_slots", Exhausted())
+    r = client.post("/backtest", json=backtest_body())
+    assert r.status_code == 429
+    assert "retry" in r.json()["detail"].lower()
+    assert "Retry-After" in r.headers
+
+
 def test_rate_limiter_is_per_ip():
     limiter = RateLimiter(limit=1, window=60.0)
     limiter(_fake_request("10.0.0.1"))

@@ -12,8 +12,10 @@ from tests.conftest import TEST_INTERVAL, TEST_SYMBOL
 def _reset_throttle():
     """Each test starts with a clean per-pair check throttle."""
     freshness._last_check.clear()
+    freshness._inflight.clear()
     yield
     freshness._last_check.clear()
+    freshness._inflight.clear()
 
 
 @pytest.fixture
@@ -59,6 +61,46 @@ def test_fresh_pair_does_not_fetch(backfill_calls):
     try:
         freshness.ensure_fresh(symbol, "1d")
         assert backfill_calls == []
+    finally:
+        with SessionLocal() as db:
+            db.query(Candle).filter(Candle.symbol == symbol).delete()
+            db.commit()
+
+
+def test_mildly_stale_pair_tops_up_in_background(monkeypatch):
+    """3 days old on a 1d interval (threshold 2d, gross bound 6d): the request
+    must not block — the top-up runs on a background thread."""
+    import threading
+
+    from app.db import SessionLocal
+    from app.models import Candle
+
+    symbol = "MILDUSDT"
+    with SessionLocal() as db:
+        db.add(
+            Candle(
+                symbol=symbol,
+                interval="1d",
+                open_time=datetime.now(tz=UTC) - timedelta(days=3),
+                open=1, high=1, low=1, close=1, volume=1,
+            )
+        )
+        db.commit()
+
+    fetched = threading.Event()
+    calls: list[str] = []
+
+    def fake_backfill(*args, **kwargs):
+        calls.append(threading.current_thread().name)
+        fetched.set()
+
+    monkeypatch.setattr(freshness, "backfill", fake_backfill)
+    try:
+        freshness.ensure_fresh(symbol, "1d")
+        assert fetched.wait(timeout=5), "background top-up never ran"
+        assert calls[0] != threading.main_thread().name, (
+            "mildly-stale top-up ran on the request thread (hot path)"
+        )
     finally:
         with SessionLocal() as db:
             db.query(Candle).filter(Candle.symbol == symbol).delete()

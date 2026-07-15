@@ -1,10 +1,12 @@
 """Backtest API: list strategies/symbols and run a backtest (FR-02, FR-03)."""
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.backtesting.engine import run_backtest
+from app.backtesting.engine import EngineBusy, run_backtest
 from app.backtesting.schemas import BacktestRequest
 from app.backtesting.strategies import STRATEGIES
 from app.config import get_settings
@@ -14,6 +16,7 @@ from app.models import Candle
 from app.ratelimit import RateLimiter
 
 router = APIRouter(tags=["backtest"])
+logger = logging.getLogger("backtestlab.runs")
 
 # The backtest runs a full simulation synchronously and is unauthenticated, so
 # cap how often any single IP can trigger it to protect CPU/availability.
@@ -56,6 +59,16 @@ def post_backtest(req: BacktestRequest) -> dict:
     """Run a backtest synchronously and return stats + equity curve."""
     if _settings.data_auto_refresh:
         ensure_fresh(req.symbol, req.interval)
+    # Product-analytics signal (config only, never IPs/PII): which strategies,
+    # pairs and params people actually run drives what gets built next.
+    logger.info(
+        "run strategy=%s symbol=%s interval=%s params=%s ranged=%s",
+        req.strategy,
+        req.symbol,
+        req.interval,
+        req.params,
+        bool(req.start or req.end),
+    )
     try:
         return run_backtest(
             symbol=req.symbol,
@@ -68,5 +81,9 @@ def post_backtest(req: BacktestRequest) -> dict:
             fee_pct=req.fee_pct,
             slippage_pct=req.slippage_pct,
         )
+    except EngineBusy as exc:
+        raise HTTPException(
+            status_code=429, detail=str(exc), headers={"Retry-After": "5"}
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
