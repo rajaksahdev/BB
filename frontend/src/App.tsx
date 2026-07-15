@@ -430,6 +430,11 @@ export default function App() {
               <div className="empty-state">
                 <p>Run a backtest to see the equity curve and stats here.</p>
                 <p className="muted">Run more than one to compare them side by side.</p>
+                <ol className="empty-steps">
+                  <li>Pick a pair &amp; period</li>
+                  <li>Choose a strategy</li>
+                  <li>Run the backtest</li>
+                </ol>
               </div>
             )
           ) : (
@@ -461,7 +466,22 @@ export default function App() {
                         {r.label}
                       </h3>
                       {r.savedId ? (
-                        <span className="saved-badge">✓ Saved</span>
+                        <span className="saved-badge">
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="12"
+                            height="12"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M5 13l4 4L19 7" />
+                          </svg>
+                          Saved
+                        </span>
                       ) : (
                         <button
                           className="save-btn"

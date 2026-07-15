@@ -14,6 +14,13 @@
   margin-bottom: 24px;
   border-bottom: 1px solid var(--border);
 }
+@media (max-width: 720px) {
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+}
 .app-header h1 {
   font-size: 25px;
   letter-spacing: -0.02em;
@@ -173,6 +180,23 @@
   gap: 10px;
   margin-top: 2px;
 }
+/* Stacked header on small screens: auth block left-aligns under the brand.
+   Must come after the base .auth-bar rules to win the specificity tie. */
+@media (max-width: 720px) {
+  .auth-bar {
+    flex-wrap: wrap;
+  }
+  .auth-bar input[type="email"] {
+    flex: 1;
+    min-width: 0;
+  }
+  .auth-bar.signed-in {
+    align-items: flex-start;
+  }
+  .auth-user {
+    flex-wrap: wrap;
+  }
+}
 .link-btn,
 .auth-actions button {
   font: inherit;
@@ -201,7 +225,9 @@
 /* ---- Layout ---- */
 .layout {
   display: grid;
-  grid-template-columns: 372px 1fr;
+  /* minmax(0, …) lets the results column shrink below the chart canvas's
+     fixed pixel width — otherwise the page scrolls horizontally on mobile. */
+  grid-template-columns: 372px minmax(0, 1fr);
   gap: 22px;
   align-items: start;
 }
@@ -223,6 +249,7 @@
 
 .panel {
   position: relative;
+  min-width: 0;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 120px),
     var(--surface);
@@ -277,6 +304,7 @@
   color: var(--muted);
   text-transform: uppercase;
   flex: 1;
+  min-width: 0;
 }
 .field-row {
   display: flex;
@@ -286,6 +314,8 @@
 .field input[type="number"] {
   font: inherit;
   font-weight: 500;
+  width: 100%;
+  min-width: 0;
   text-transform: none;
   letter-spacing: normal;
   color: var(--text);
@@ -378,6 +408,37 @@
   background: var(--surface-3);
 }
 
+/* Segmented period picker: tappable presets beat a dropdown for 6 options. */
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.seg-btn {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  text-transform: none;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 7px 13px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.seg-btn:hover {
+  border-color: #3d4a66;
+  color: var(--text);
+}
+.seg-btn.active {
+  color: var(--accent);
+  background: var(--accent-weak);
+  border-color: var(--accent-border);
+  box-shadow: 0 0 14px -6px rgba(79, 124, 255, 0.6);
+}
+
 .strategy-desc {
   font-size: 13px;
   color: var(--text-dim);
@@ -414,10 +475,24 @@
   cursor: pointer;
   box-shadow: var(--glow-accent), inset 0 1px 0 rgba(255, 255, 255, 0.2);
   transition: filter 0.15s, transform 0.05s, box-shadow 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
 }
-/* Arrow only on the form's submit button — landing CTAs have their own copy. */
-.config-form .run-btn::after {
+/* Arrow only on the form's submit button — landing CTAs have their own copy.
+   Hidden while disabled/running so the spinner stands alone. */
+.config-form .run-btn:not(:disabled)::after {
   content: " ▸";
+}
+.btn-spinner {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
 }
 .run-btn:hover {
   filter: brightness(1.09);
@@ -488,6 +563,43 @@
 .muted {
   color: var(--muted);
 }
+/* Numbered quick-start chips inside the results empty state. */
+.empty-steps {
+  list-style: none;
+  counter-reset: step;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  margin: 20px 0 0;
+}
+.empty-steps li {
+  counter-increment: step;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 14px 6px 7px;
+}
+.empty-steps li::before {
+  content: counter(step);
+  width: 19px;
+  height: 19px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-weak);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+}
 
 .equity-chart {
   width: 100%;
@@ -532,11 +644,14 @@
   cursor: pointer;
   font-size: 15px;
   line-height: 1;
-  padding: 0 2px;
-  border-radius: 4px;
+  padding: 4px 7px;
+  margin: -3px -2px -3px 0;
+  border-radius: 999px;
+  transition: color 0.15s, background 0.15s;
 }
 .legend-remove:hover {
   color: var(--neg);
+  background: var(--neg-weak);
 }
 
 /* ---- Comparison grid ---- */
@@ -568,6 +683,7 @@
   }
 }
 .compare-col {
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 15px;
@@ -610,10 +726,17 @@
   cursor: default;
 }
 .saved-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
   font-weight: 600;
   color: var(--pos);
   white-space: nowrap;
+  background: var(--pos-weak);
+  border: 1px solid rgba(47, 224, 138, 0.35);
+  border-radius: 999px;
+  padding: 3px 10px;
 }
 
 /* ---- Saved list ---- */
@@ -686,7 +809,8 @@
   border-radius: var(--radius-sm);
   cursor: pointer;
   padding: 0 10px;
-  font-size: 14px;
+  display: grid;
+  place-items: center;
   transition: border-color 0.15s, color 0.15s;
 }
 .saved-delete:hover {
@@ -749,6 +873,12 @@
 .stat-hint {
   font-size: 11px;
   color: var(--muted);
+}
+.stat-hint.pos {
+  color: var(--pos);
+}
+.stat-hint.neg {
+  color: var(--neg);
 }
 .assumptions-line {
   font-size: 12px;
@@ -1532,6 +1662,12 @@
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
+.trades tbody tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.015);
+}
+.trades tbody tr:hover td {
+  background: rgba(79, 124, 255, 0.07);
+}
 .trades th.num,
 .trades td.num {
   text-align: right;
@@ -1572,5 +1708,12 @@
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+/* Loading spinners stay (they convey state) but slow down for reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  .btn-spinner {
+    animation-duration: 1.6s;
   }
 }

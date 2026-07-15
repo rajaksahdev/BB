@@ -27,6 +27,8 @@ const INTERVAL_LABELS: Record<string, string> = { "1d": "Daily", "1h": "Hourly" 
 interface Period {
   key: string;
   label: string;
+  /** Compact label for the segmented picker; `label` stays on run titles. */
+  short: string;
   range: () => { start?: string; end?: string };
 }
 
@@ -41,13 +43,14 @@ const yearStart = (y: number) => new Date(Date.UTC(y, 0, 1));
 
 const THIS_YEAR = new Date().getUTCFullYear();
 const PERIODS: Period[] = [
-  { key: "all", label: "All history", range: () => ({}) },
-  { key: "12m", label: "Last 12 months", range: () => ({ start: isoDay(monthsAgo(12)) }) },
-  { key: "24m", label: "Last 24 months", range: () => ({ start: isoDay(monthsAgo(24)) }) },
-  { key: "ytd", label: `${THIS_YEAR} YTD`, range: () => ({ start: isoDay(yearStart(THIS_YEAR)) }) },
+  { key: "all", label: "All history", short: "All", range: () => ({}) },
+  { key: "12m", label: "Last 12 months", short: "12M", range: () => ({ start: isoDay(monthsAgo(12)) }) },
+  { key: "24m", label: "Last 24 months", short: "24M", range: () => ({ start: isoDay(monthsAgo(24)) }) },
+  { key: "ytd", label: `${THIS_YEAR} YTD`, short: "YTD", range: () => ({ start: isoDay(yearStart(THIS_YEAR)) }) },
   ...[THIS_YEAR - 1, THIS_YEAR - 2].map((y) => ({
     key: `y${y}`,
     label: String(y),
+    short: String(y),
     range: () => ({ start: isoDay(yearStart(y)), end: isoDay(yearStart(y + 1)) }),
   })),
 ];
@@ -137,16 +140,23 @@ export default function StrategyForm({
         </label>
       </div>
 
-      <label className="field">
-        <span>Period</span>
-        <select value={periodKey} onChange={(e) => setPeriodKey(e.target.value)}>
+      <div className="field">
+        <span id="period-label">Period</span>
+        <div className="segmented" role="group" aria-labelledby="period-label">
           {PERIODS.map((p) => (
-            <option key={p.key} value={p.key}>
-              {p.label}
-            </option>
+            <button
+              type="button"
+              key={p.key}
+              className={`seg-btn${p.key === periodKey ? " active" : ""}`}
+              aria-pressed={p.key === periodKey}
+              title={p.label}
+              onClick={() => setPeriodKey(p.key)}
+            >
+              {p.short}
+            </button>
           ))}
-        </select>
-      </label>
+        </div>
+      </div>
 
       <label className="field">
         <span>Strategy</span>
@@ -222,7 +232,13 @@ export default function StrategyForm({
       </fieldset>
 
       <button type="submit" className="run-btn" disabled={busy || !strategy}>
-        {busy ? "Running…" : "Run backtest"}
+        {busy ? (
+          <>
+            <span className="btn-spinner" aria-hidden="true" /> Running…
+          </>
+        ) : (
+          "Run backtest"
+        )}
       </button>
     </form>
   );

@@ -37,6 +37,7 @@ export default function StatsPanel({ result }: { result: BacktestResult }) {
           value={pct(s.buy_hold_return_pct)}
           cls={signClass(s.buy_hold_return_pct)}
           hint={beatsHold ? "strategy beat holding" : "holding beat strategy"}
+          hintCls={beatsHold ? "pos" : "neg"}
         />
         <Stat label="Final equity" value={money(s.final_equity)} />
         <Stat label="Win rate" value={pct(s.win_rate_pct)} />
@@ -60,19 +61,21 @@ function Stat({
   value,
   cls = "",
   hint,
+  hintCls = "",
   big = false,
 }: {
   label: string;
   value: string;
   cls?: string;
   hint?: string;
+  hintCls?: string;
   big?: boolean;
 }) {
   return (
     <div className={`stat ${big ? "stat-big" : ""}`}>
       <span className="stat-label">{label}</span>
       <span className={`stat-value ${cls}`}>{value}</span>
-      {hint && <span className="stat-hint">{hint}</span>}
+      {hint && <span className={`stat-hint ${hintCls}`}>{hint}</span>}
     </div>
   );
 }
