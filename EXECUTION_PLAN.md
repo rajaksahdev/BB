@@ -30,6 +30,24 @@ trading · user-uploaded code · job queues / async workers (run sync).
 | **5 · Billing** | ✅ Done | Lemon Squeezy (Merchant of Record) hosted Checkout + customer portal + HMAC-signature-verified webhook; env-gated (503 + UI hidden when unconfigured). Tier flips driven by webhooks. **Verified live (test mode):** a `4242` test card completed checkout → LS fired `subscription_created` → signature verified → user flipped free→pro with `billing_customer_id`/`billing_subscription_id` persisted. Frontend Upgrade/Manage + 402 upgrade prompt. **Provider note:** switched from Stripe to Lemon Squeezy to skip business verification and offload global tax. **Before launch:** rotate the API key (shared in chat), decide final price (current test variant is $99.99/yr), and re-point the webhook at the production API URL. |
 | **6 · Polish + launch** | ✅ Built (deploy pending) | Landing page; loading/empty/error states; disclaimers on every view + footer; env-driven CORS; `postgres://`→psycopg URL normalization; Dockerfile + Render Blueprint (`render.yaml`) provisioning API + static frontend + Postgres. **Remaining for full gate:** founder accounts (Supabase/Render/domain), deploy, and confirm the e2e flow on the live URL. |
 
+## Post-launch roadmap (Phase 7+)
+
+v1 shipped Phases 0–6, so the "protect the v1 scope line" guardrail is met —
+these are the post-launch revenue/retention levers, ordered by impact-per-effort.
+Same rule as before: **each phase gates on its DoD before the next starts.**
+
+| Phase | Status | Definition of Done (gate) |
+|-------|--------|---------------------------|
+| **7 · Optimizer & analytics** | 🔨 In progress | **7a Parameter sweep (optimizer):** `POST /optimize` sweeps declared param ranges (grid), returns per-combo metrics + best params; combo cap + rate limit protect the instance; UI gets an Optimize mode with range inputs, a 2-param heatmap, ranked table, and one-click "apply best params". **7b Multi-pair batch:** run one strategy across all pairs, ranked results. **7c Extended metrics:** monthly-returns heatmap, drawdown duration, trade-duration distribution. **7d Public share pages:** read-only `/s/<id>` result page with OG image. |
+| **8 · Validation suite** | 🔜 Planned | **Walk-forward:** train/test window split with in/out-of-sample stats side by side. **Monte Carlo:** trade-sequence resampling → equity confidence bands + risk-of-ruin. Gate: an optimized run clearly shows overfitting when out-of-sample degrades. |
+| **9 · Strategy builder + risk layer** | 🔜 Planned | No-code rule composer (IF indicator-condition AND … THEN buy/sell) compiled to an engine strategy server-side (never user code execution); stop-loss / take-profit / trailing / position-sizing options applicable to any strategy. Gate: a composed strategy round-trips (build → run → save → share). |
+| **10 · Growth & retention** | 🔜 Planned | Anonymized strategy leaderboard per pair/period; CSV/PDF export; AI result explainer (Claude API); more pairs/timeframes; alert emails when a **user's own** strategy signals (framed as research notifications, never trade signals). |
+
+> Scope note: the v1 "OUT of scope" list above was a **launch** constraint, not a
+> permanent ban — Phase 7+ deliberately promotes those deferred levers now that
+> v1 is live. Job queues stay out until a phase actually needs >5s requests
+> (the optimizer runs sync under a combo cap on purpose).
+
 ## Functional requirements (traceability)
 
 | ID | Requirement | Phase |

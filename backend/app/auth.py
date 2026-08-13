@@ -64,7 +64,10 @@ def get_current_user(
     token = authorization[len("Bearer ") :].strip()
 
     # --- Dev fallback ---
-    if settings.auth_dev_mode and token.startswith(_DEV_PREFIX):
+    # Fail-safe: dev tokens are forgeable by anyone, so a production deploy
+    # must never accept them even if AUTH_DEV_MODE was left on by mistake.
+    dev_mode = settings.auth_dev_mode and settings.app_env != "production"
+    if dev_mode and token.startswith(_DEV_PREFIX):
         email = token[len(_DEV_PREFIX) :].strip().lower()
         if not email:
             raise HTTPException(status_code=401, detail="Dev token needs an email: 'dev:you@example.com'.")

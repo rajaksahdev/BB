@@ -45,7 +45,8 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str = ""
     supabase_jwt_aud: str = "authenticated"
     # When true, accept "Bearer dev:<email>" tokens for local testing without
-    # Supabase. MUST be false in production.
+    # Supabase. MUST be false in production — and as a fail-safe, auth.py
+    # ignores this flag entirely when APP_ENV=production.
     auth_dev_mode: bool = True
 
     # Free-tier monthly saved-backtest limit (Pro = unlimited). FR-06.
@@ -56,6 +57,13 @@ class Settings(BaseSettings):
     # to protect a small instance; tests raise it so the suite isn't throttled.
     backtest_rate_limit: int = 20
     backtest_rate_window: float = 60.0
+
+    # Optimizer (Phase 7a). A sweep runs up to ``optimize_max_combos``
+    # simulations in one synchronous request under a single engine slot, so it
+    # gets a much tighter per-IP rate limit than single backtests.
+    optimize_max_combos: int = 200
+    optimize_rate_limit: int = 4
+    optimize_rate_window: float = 60.0
 
     # Hard cap on simultaneous engine simulations (they are CPU-bound and
     # GIL-contending; a pile-up would stall every request, /health included).

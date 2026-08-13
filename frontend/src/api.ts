@@ -85,6 +85,74 @@ export interface BacktestRequest {
   name?: string; // optional label, used when saving
 }
 
+// ---- Optimizer (Phase 7a) ----
+
+export type OptimizeMetric =
+  | "return_pct"
+  | "sharpe_ratio"
+  | "win_rate_pct"
+  | "max_drawdown_pct";
+
+export const METRIC_LABELS: Record<OptimizeMetric, string> = {
+  return_pct: "Return %",
+  sharpe_ratio: "Sharpe ratio",
+  win_rate_pct: "Win rate %",
+  max_drawdown_pct: "Max drawdown %",
+};
+
+/** Sweep range for one parameter. Omitted step → ~10 values across the range. */
+export interface ParamRange {
+  min: number;
+  max: number;
+  step?: number;
+}
+
+export interface OptimizeRequest {
+  symbol: string;
+  interval: string;
+  strategy: string;
+  /** Params to sweep (1–2); the rest come from `params` or strategy defaults. */
+  param_ranges: Record<string, ParamRange>;
+  params: Record<string, number>;
+  metric: OptimizeMetric;
+  start?: string;
+  end?: string;
+  fee_pct: number;
+  slippage_pct: number;
+}
+
+/** One evaluated parameter combination (scale-invariant metrics only). */
+export interface OptimizeCombo {
+  params: Record<string, number>;
+  return_pct: number | null;
+  sharpe_ratio: number | null;
+  max_drawdown_pct: number | null;
+  win_rate_pct: number | null;
+  trade_count: number;
+}
+
+export interface OptimizeResult {
+  request: {
+    symbol: string;
+    interval: string;
+    strategy: string;
+    metric: OptimizeMetric;
+    start: string;
+    end: string;
+    fixed_params: Record<string, number>;
+  };
+  swept: string[];
+  grid: Record<string, number[]>;
+  /** All evaluated combos, ranked best-first by the requested metric. */
+  results: OptimizeCombo[];
+  best: OptimizeCombo & { full_params: Record<string, number> };
+  combos_run: number;
+  combos_skipped: number;
+  elapsed_ms: number;
+  assumptions: Assumptions;
+  disclaimer: string;
+}
+
 export interface Me {
   id: string;
   email: string;
@@ -218,6 +286,15 @@ export function runBacktest(body: BacktestRequest): Promise<BacktestResult> {
   return request<BacktestResult>("/backtest", {
     method: "POST",
     body: JSON.stringify(body),
+  });
+}
+
+/** Grid-sweep strategy params. Sweeps run up to 200 simulations — allow longer. */
+export function runOptimize(body: OptimizeRequest): Promise<OptimizeResult> {
+  return request<OptimizeResult>("/optimize", {
+    method: "POST",
+    body: JSON.stringify(body),
+    timeoutMs: 90_000,
   });
 }
 

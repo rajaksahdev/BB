@@ -10,12 +10,15 @@ import {
   openPortal,
   resultToRequest,
   runBacktest,
+  runOptimize,
   saveBacktest,
   savedToResult,
   startCheckout,
   SYMBOLS,
   type BacktestRequest,
   type BacktestResult,
+  type OptimizeRequest,
+  type OptimizeResult,
   type Strategy,
 } from "./api";
 import { useAuth } from "./useAuth";
@@ -25,6 +28,7 @@ import StatsPanel from "./components/StatsPanel";
 import AuthBar from "./components/AuthBar";
 import SavedList from "./components/SavedList";
 import Landing from "./components/Landing";
+import OptimizeResults from "./components/OptimizeResults";
 import Legal from "./components/Legal";
 import TradesTable from "./components/TradesTable";
 import EquityChart, { type EquitySeries } from "./components/EquityChart";
@@ -76,6 +80,8 @@ export default function App() {
     action?: "upgrade";
   } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [busyKind, setBusyKind] = useState<"run" | "optimize">("run");
+  const [optResult, setOptResult] = useState<OptimizeResult | null>(null);
   const [runs, setRuns] = useState<Run[]>([]);
   const [nextId, setNextId] = useState(1);
   const [savedReload, setSavedReload] = useState(0);
@@ -216,6 +222,7 @@ export default function App() {
 
   async function handleRun(req: BacktestRequest, periodLabel?: string) {
     setBusy(true);
+    setBusyKind("run");
     setRunErr(null);
     try {
       const result = await runBacktest(req);
@@ -225,6 +232,40 @@ export default function App() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleOptimize(req: OptimizeRequest) {
+    setBusy(true);
+    setBusyKind("optimize");
+    setRunErr(null);
+    try {
+      setOptResult(await runOptimize(req));
+    } catch (e) {
+      setRunErr(e instanceof ApiError ? e.message : String((e as Error).message ?? e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Backtest one combo from the optimizer grid (best card, cell, or table row). */
+  function handleApplyCombo(params: Record<string, number>) {
+    if (!optResult) return;
+    const { symbol, interval, strategy } = optResult.request;
+    void handleRun(
+      {
+        symbol,
+        interval,
+        strategy,
+        params,
+        cash: 10_000,
+        fee_pct: optResult.assumptions.fee_pct,
+        slippage_pct: optResult.assumptions.slippage_pct,
+        // Pin the sweep's window so the run reproduces the ranked numbers.
+        start: optResult.request.start,
+        end: optResult.request.end,
+      },
+      "optimized",
+    );
   }
 
   async function handleSave(run: Run) {
@@ -415,6 +456,7 @@ export default function App() {
                 intervals={intervals}
                 busy={busy}
                 onRun={handleRun}
+                onOptimize={handleOptimize}
                 initial={shared ?? undefined}
               />
             ) : (
@@ -459,12 +501,24 @@ export default function App() {
 
           {busy && (
             <div className="running-bar">
-              <span className="spinner" /> Running backtest on real history…
+              <span className="spinner" />{" "}
+              {busyKind === "optimize"
+                ? "Sweeping the parameter grid — every combination is a full backtest…"
+                : "Running backtest on real history…"}
             </div>
           )}
 
+          {optResult && (
+            <OptimizeResults
+              result={optResult}
+              busy={busy}
+              onApply={handleApplyCombo}
+              onClose={() => setOptResult(null)}
+            />
+          )}
+
           {runs.length === 0 ? (
-            busy ? null : (
+            busy || optResult ? null : (
               <div className="empty-state">
                 <p>Run a backtest to see the equity curve and stats here.</p>
                 <p className="muted">Run more than one to compare them side by side.</p>

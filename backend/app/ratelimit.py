@@ -7,7 +7,7 @@ a fixed-window limiter keyed by client IP — no external store, no new
 dependency. It resets on restart and is per-process, which is sufficient for the
 single-instance deployment; move to Redis-backed limiting if we scale out.
 
-Behind a proxy (Render/Railway) the real client IP is the first hop of the
+Behind a proxy (Render/Railway) the real client IP is in the
 ``X-Forwarded-For`` header, not ``request.client.host`` (that is the proxy).
 """
 
@@ -20,8 +20,11 @@ from fastapi import HTTPException, Request
 def _client_ip(request: Request) -> str:
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
-        # First entry is the original client; the rest are proxies.
-        return forwarded.split(",")[0].strip()
+        # Proxies APPEND the peer's address, so only the LAST entry was written
+        # by the trusted proxy in front of us — everything before it (including
+        # the conventional "first = original client") is attacker-controlled
+        # and would let a client mint a fresh rate-limit bucket per request.
+        return forwarded.split(",")[-1].strip()
     return request.client.host if request.client else "unknown"
 
 
@@ -63,7 +66,11 @@ class RateLimiter:
             )
         bucket.append(now)
 
-        # Opportunistic cleanup so idle IPs don't leak memory forever.
+        # Opportunistic cleanup so idle IPs don't leak memory forever. Buckets
+        # whose newest hit is outside the window are dead weight — an attacker
+        # cycling spoofed IPs would otherwise grow this map unboundedly.
         if len(self._hits) > 10_000:
-            for key in [k for k, v in self._hits.items() if not v]:
+            for key in [
+                k for k, v in self._hits.items() if not v or v[-1] <= cutoff
+            ]:
                 del self._hits[key]

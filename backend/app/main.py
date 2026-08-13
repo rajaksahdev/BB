@@ -58,7 +58,6 @@ app.include_router(backtest.router)
 app.include_router(backtests.router)
 app.include_router(billing.router)
 
-
 @app.get("/")
 def root() -> dict:
     return {

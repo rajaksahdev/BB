@@ -54,18 +54,32 @@ def test_rate_limiter_is_per_ip():
     limiter(_fake_request("10.0.0.2"))
 
 
-def test_rate_limiter_prefers_forwarded_for():
-    """Behind a proxy the real client is the first X-Forwarded-For hop."""
-    limiter = RateLimiter(limit=1, window=60.0)
+def _forwarded_request(xff: str) -> Request:
     scope = {
         "type": "http",
-        "headers": [(b"x-forwarded-for", b"203.0.113.9, 10.0.0.5")],
+        "headers": [(b"x-forwarded-for", xff.encode())],
         "client": ("10.0.0.5", 999),  # proxy IP
     }
-    req = Request(scope)
-    limiter(req)
+    return Request(scope)
+
+
+def test_rate_limiter_prefers_forwarded_for():
+    """Behind a proxy the real client is the LAST X-Forwarded-For entry (the
+    one appended by the trusted proxy in front of us)."""
+    limiter = RateLimiter(limit=1, window=60.0)
+    limiter(_forwarded_request("203.0.113.9"))
     with pytest.raises(HTTPException):
-        limiter(req)  # same real client -> blocked despite proxy hop
+        limiter(_forwarded_request("203.0.113.9"))  # same real client -> blocked
+
+
+def test_rate_limiter_ignores_spoofed_forwarded_prefix():
+    """A client forging X-Forwarded-For prefixes must not mint fresh buckets:
+    proxies append, so everything before the last entry is attacker-controlled."""
+    limiter = RateLimiter(limit=1, window=60.0)
+    limiter(_forwarded_request("6.6.6.1, 203.0.113.9"))
+    with pytest.raises(HTTPException):
+        # Different forged prefix, same real client appended by the proxy.
+        limiter(_forwarded_request("6.6.6.2, 203.0.113.9"))
 
 
 def test_backtest_rejects_reversed_date_range(client):
@@ -82,6 +96,55 @@ def test_backtest_rejects_absurd_date_range(client):
     body["end"] = "2100-01-01T00:00:00Z"  # ~200 years
     r = client.post("/backtest", json=body)
     assert r.status_code == 422
+
+
+def test_backtest_rejects_nan_param(client):
+    """NaN compares False against every bound, so it must be rejected outright
+    — not slip past min/max validation into the engine."""
+    r = client.post("/backtest", json=backtest_body(params={"fast": 10, "slow": "NaN"}))
+    assert r.status_code == 400
+    assert "number" in r.json()["detail"]
+
+
+def test_backtest_rejects_non_numeric_param(client):
+    # A list/dict param must be a clean 400, not a TypeError -> 500.
+    r = client.post("/backtest", json=backtest_body(params={"fast": [10], "slow": 30}))
+    assert r.status_code == 400
+    assert "number" in r.json()["detail"]
+
+
+def test_optimize_rejects_nan_fixed_param(client):
+    body = {
+        "symbol": backtest_body()["symbol"],
+        "interval": backtest_body()["interval"],
+        "strategy": "ma_crossover",
+        "param_ranges": {"fast": {"min": 5, "max": 20, "step": 5}},
+        "params": {"slow": "NaN"},
+    }
+    r = client.post("/optimize", json=body)
+    assert r.status_code == 400
+    assert "number" in r.json()["detail"]
+
+
+def test_optimize_rejects_nan_sweep_range(client):
+    body = {
+        "symbol": backtest_body()["symbol"],
+        "interval": backtest_body()["interval"],
+        "strategy": "ma_crossover",
+        "param_ranges": {"fast": {"min": "NaN", "max": 20}},
+    }
+    r = client.post("/optimize", json=body)
+    assert r.status_code == 422  # rejected at the schema (allow_inf_nan=False)
+
+
+def test_dev_token_rejected_in_production(client, monkeypatch):
+    """Fail-safe: even with AUTH_DEV_MODE=true, a production deploy must never
+    accept forgeable dev tokens."""
+    from app import auth as auth_module
+
+    monkeypatch.setattr(auth_module.settings, "app_env", "production")
+    r = client.get("/me", headers={"Authorization": "Bearer dev:evil@example.com"})
+    assert r.status_code in (401, 503)  # anything but an authenticated 200
 
 
 def test_backtest_rejects_oversized_body(client):

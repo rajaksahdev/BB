@@ -13,6 +13,7 @@ all monetary outputs back to the user's chosen starting cash. Percentage metrics
 
 import math
 import threading
+from contextlib import contextmanager
 from datetime import datetime
 
 import pandas as pd
@@ -34,6 +35,24 @@ class EngineBusy(RuntimeError):
 _run_slots = threading.BoundedSemaphore(get_settings().backtest_max_concurrency)
 _ACQUIRE_WAIT_SECONDS = 2.0
 
+
+@contextmanager
+def engine_slot():
+    """Hold one simulation slot; raises ``EngineBusy`` when none frees up.
+
+    A whole optimizer sweep runs under a single slot — it is one user action,
+    and per-combo acquisition would let one sweep starve interactive runs.
+    """
+    if not _run_slots.acquire(timeout=_ACQUIRE_WAIT_SECONDS):
+        raise EngineBusy(
+            "The server is running its maximum number of simultaneous "
+            "backtests. Please retry in a few seconds."
+        )
+    try:
+        yield
+    finally:
+        _run_slots.release()
+
 DISCLAIMER = (
     "For research and educational use only. This is NOT financial advice. "
     "Past performance does not guarantee future results. Results model "
@@ -54,6 +73,26 @@ def _clean(value) -> float | None:
     return f
 
 
+def coerce_param(key: str, spec: dict, val) -> int | float:
+    """Coerce one user-supplied param value against its declared spec.
+
+    Rejects non-numeric types and non-finite floats (NaN compares False against
+    every bound, so it would silently bypass the min/max checks below).
+    """
+    try:
+        coerced = int(val) if spec["type"] == "int" else float(val)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"'{key}' must be a number.") from exc
+    if not math.isfinite(coerced):
+        raise ValueError(f"'{key}' must be a finite number.")
+    lo, hi = spec.get("min"), spec.get("max")
+    if lo is not None and coerced < lo:
+        raise ValueError(f"'{key}' must be >= {lo}")
+    if hi is not None and coerced > hi:
+        raise ValueError(f"'{key}' must be <= {hi}")
+    return coerced
+
+
 def _resolve_params(strategy_key: str, raw: dict) -> dict:
     """Validate + coerce user params against the strategy's declared schema."""
     spec = STRATEGIES[strategy_key]["meta"]["params"]
@@ -64,13 +103,7 @@ def _resolve_params(strategy_key: str, raw: dict) -> dict:
                 f"Unknown parameter '{key}' for strategy '{strategy_key}'. "
                 f"Allowed: {', '.join(spec)}"
             )
-        coerced = int(val) if spec[key]["type"] == "int" else float(val)
-        lo, hi = spec[key].get("min"), spec[key].get("max")
-        if lo is not None and coerced < lo:
-            raise ValueError(f"'{key}' must be >= {lo}")
-        if hi is not None and coerced > hi:
-            raise ValueError(f"'{key}' must be <= {hi}")
-        merged[key] = coerced
+        merged[key] = coerce_param(key, spec[key], val)
     validate = STRATEGIES[strategy_key].get("validate")
     if validate is not None:
         validate(merged)
@@ -100,16 +133,9 @@ def run_backtest(
         )
     resolved = _resolve_params(strategy, params)
 
-    if not _run_slots.acquire(timeout=_ACQUIRE_WAIT_SECONDS):
-        raise EngineBusy(
-            "The server is running its maximum number of simultaneous "
-            "backtests. Please retry in a few seconds."
-        )
-    try:
+    with engine_slot():
         return _run(symbol, interval, strategy, resolved, start, end, cash,
                     fee_pct, slippage_pct, max_curve_points, max_trades)
-    finally:
-        _run_slots.release()
 
 
 def _run(

@@ -25,7 +25,7 @@ const STRATEGIES: Strategy[] = [
 
 describe("StrategyForm", () => {
   it("renders a control for each declared param of the selected strategy", () => {
-    render(<StrategyForm strategies={STRATEGIES} busy={false} onRun={vi.fn()} />);
+    render(<StrategyForm strategies={STRATEGIES} busy={false} onRun={vi.fn()} onOptimize={vi.fn()} />);
     expect(screen.getByText("Fast MA period")).toBeInTheDocument();
     expect(screen.getByText("Slow MA period")).toBeInTheDocument();
     // Default strategy's description is shown.
@@ -33,7 +33,7 @@ describe("StrategyForm", () => {
   });
 
   it("swaps the param controls when the strategy changes", () => {
-    render(<StrategyForm strategies={STRATEGIES} busy={false} onRun={vi.fn()} />);
+    render(<StrategyForm strategies={STRATEGIES} busy={false} onRun={vi.fn()} onOptimize={vi.fn()} />);
     fireEvent.change(screen.getByDisplayValue("Moving Average Crossover"), {
       target: { value: "grid" },
     });
@@ -43,7 +43,9 @@ describe("StrategyForm", () => {
 
   it("submits a request with fee/slippage converted from percent to fraction", () => {
     const onRun = vi.fn();
-    render(<StrategyForm strategies={STRATEGIES} busy={false} onRun={onRun} />);
+    render(
+      <StrategyForm strategies={STRATEGIES} busy={false} onRun={onRun} onOptimize={vi.fn()} />,
+    );
     const form = screen.getByRole("button", { name: /run backtest/i }).closest("form")!;
     fireEvent.submit(form);
 
@@ -56,8 +58,34 @@ describe("StrategyForm", () => {
     expect(req.slippage_pct).toBeCloseTo(0.0005);
   });
 
+  it("submits a sweep request in optimize mode (default: first param swept)", () => {
+    const onOptimize = vi.fn();
+    render(
+      <StrategyForm
+        strategies={STRATEGIES}
+        busy={false}
+        onRun={vi.fn()}
+        onOptimize={onOptimize}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Optimize" }));
+    const form = screen.getByRole("button", { name: /optimize \(/i }).closest("form")!;
+    fireEvent.submit(form);
+
+    expect(onOptimize).toHaveBeenCalledTimes(1);
+    const req = onOptimize.mock.calls[0][0];
+    expect(req.strategy).toBe("ma_crossover");
+    expect(req.param_ranges).toHaveProperty("fast");
+    expect(req.param_ranges).not.toHaveProperty("slow");
+    // Unswept params travel as fixed values.
+    expect(req.params).toEqual({ slow: 50 });
+    expect(req.metric).toBe("return_pct");
+  });
+
   it("disables the run button while busy", () => {
-    render(<StrategyForm strategies={STRATEGIES} busy={true} onRun={vi.fn()} />);
+    render(
+      <StrategyForm strategies={STRATEGIES} busy={true} onRun={vi.fn()} onOptimize={vi.fn()} />,
+    );
     expect(screen.getByRole("button", { name: /running/i })).toBeDisabled();
   });
 });

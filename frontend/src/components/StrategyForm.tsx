@@ -7,8 +7,13 @@
 import { useMemo, useState } from "react";
 import {
   INTERVALS,
+  METRIC_LABELS,
   SYMBOLS,
   type BacktestRequest,
+  type OptimizeMetric,
+  type OptimizeRequest,
+  type ParamRange,
+  type ParamSpec,
   type Strategy,
 } from "../api";
 import type { SharedConfig } from "../share";
@@ -17,11 +22,32 @@ interface Props {
   strategies: Strategy[];
   busy: boolean;
   onRun: (req: BacktestRequest, periodLabel?: string) => void;
+  onOptimize: (req: OptimizeRequest) => void;
   /** Pairs/intervals with data (from GET /symbols); defaults cover offline dev. */
   symbols?: readonly string[];
   intervals?: readonly string[];
   /** Prefill from a share link (see share.ts). */
   initial?: SharedConfig;
+}
+
+/** Server cap on grid size; mirrored here for instant feedback. */
+const MAX_COMBOS = 200;
+const MAX_SWEPT = 2;
+
+/** Default sweep for a param: its full declared range in ~8 steps. */
+function defaultRange(spec: ParamSpec): Required<ParamRange> {
+  const lo = spec.min ?? spec.default / 2;
+  const hi = spec.max ?? spec.default * 2;
+  const rawStep = (hi - lo) / 7;
+  const step = spec.type === "int" ? Math.max(1, Math.round(rawStep)) : Number(rawStep.toFixed(2));
+  return { min: lo, max: hi, step };
+}
+
+function rangeCount(r: Required<ParamRange>): number {
+  if (r.step <= 0 || r.max < r.min) return 0;
+  const n = Math.floor((r.max - r.min) / r.step) + 1;
+  // The backend always tests the range's far edge too.
+  return r.min + (n - 1) * r.step < r.max ? n + 1 : n;
 }
 
 const INTERVAL_LABELS: Record<string, string> = { "1d": "Daily", "1h": "Hourly" };
@@ -84,6 +110,7 @@ export default function StrategyForm({
   strategies,
   busy,
   onRun,
+  onOptimize,
   symbols = SYMBOLS,
   intervals = INTERVALS,
   initial,
@@ -116,6 +143,15 @@ export default function StrategyForm({
     return stored.paramValues ?? {};
   });
 
+  // ---- Optimize mode (Phase 7a) ----
+  const [mode, setMode] = useState<"backtest" | "optimize">("backtest");
+  const [metric, setMetric] = useState<OptimizeMetric>("return_pct");
+  // Which params are swept + their ranges, keyed by strategy then param.
+  const [sweepOn, setSweepOn] = useState<Record<string, Record<string, boolean>>>({});
+  const [sweepRanges, setSweepRanges] = useState<
+    Record<string, Record<string, Required<ParamRange>>>
+  >({});
+
   const strategy = useMemo(
     () => strategies.find((s) => s.key === strategyKey),
     [strategies, strategyKey],
@@ -138,18 +174,78 @@ export default function StrategyForm({
     }));
   }
 
+  // Sweep state for the current strategy. Default: the first param swept over
+  // its full declared range, so Optimize works with zero extra clicks.
+  const sweptParams = useMemo(() => {
+    if (!strategy) return {};
+    const on = sweepOn[strategy.key];
+    if (on) return on;
+    const first = Object.keys(strategy.params)[0];
+    return first ? { [first]: true } : {};
+  }, [strategy, sweepOn]);
+
+  const currentRanges = useMemo(() => {
+    if (!strategy) return {};
+    const saved = sweepRanges[strategy.key] ?? {};
+    const out: Record<string, Required<ParamRange>> = {};
+    for (const [key, spec] of Object.entries(strategy.params)) {
+      out[key] = saved[key] ?? defaultRange(spec);
+    }
+    return out;
+  }, [strategy, sweepRanges]);
+
+  const sweptKeys = strategy
+    ? Object.keys(strategy.params).filter((k) => sweptParams[k])
+    : [];
+  const comboCount = sweptKeys.reduce((n, k) => n * rangeCount(currentRanges[k]), 1);
+
+  function toggleSweep(key: string) {
+    if (!strategy) return;
+    setSweepOn((prev) => ({
+      ...prev,
+      [strategy.key]: { ...sweptParams, [key]: !sweptParams[key] },
+    }));
+  }
+
+  function setRange(key: string, patch: Partial<Required<ParamRange>>) {
+    if (!strategy) return;
+    setSweepRanges((prev) => ({
+      ...prev,
+      [strategy.key]: {
+        ...prev[strategy.key],
+        [key]: { ...currentRanges[key], ...patch },
+      },
+    }));
+  }
+
+  const optimizeWarning =
+    mode !== "optimize"
+      ? null
+      : sweptKeys.length === 0
+        ? "Pick at least one parameter to sweep."
+        : sweptKeys.length > MAX_SWEPT
+          ? `Sweep at most ${MAX_SWEPT} parameters (uncheck one).`
+          : comboCount === 0
+            ? "A sweep range is empty — check min/max/step."
+            : comboCount > MAX_COMBOS
+              ? `${comboCount} combinations exceeds the cap of ${MAX_COMBOS} — increase the step or narrow a range.`
+              : null;
+
   // Mirror the backend's cross-param rule so the user gets instant feedback
-  // instead of a 400 after the round-trip.
-  const paramWarning =
+  // instead of a 400 after the round-trip. In optimize mode it only applies
+  // when neither MA period is swept (the sweep skips invalid combos itself).
+  const rawParamWarning =
     "fast" in currentParams &&
     "slow" in currentParams &&
     Number(currentParams.fast) >= Number(currentParams.slow)
       ? "Fast period must be below slow — as set, the crossover logic inverts."
       : null;
+  const paramWarning =
+    mode === "optimize" && (sweptParams.fast || sweptParams.slow) ? null : rawParamWarning;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!strategy || paramWarning) return;
+    if (!strategy || paramWarning || optimizeWarning) return;
     try {
       localStorage.setItem(
         STORAGE_KEY,
@@ -161,6 +257,22 @@ export default function StrategyForm({
       /* storage may be unavailable (private mode) — running still works */
     }
     const period = PERIODS.find((p) => p.key === periodKey) ?? PERIODS[0];
+    if (mode === "optimize") {
+      onOptimize({
+        symbol,
+        interval,
+        strategy: strategy.key,
+        param_ranges: Object.fromEntries(sweptKeys.map((k) => [k, currentRanges[k]])),
+        params: Object.fromEntries(
+          Object.entries(currentParams).filter(([k]) => !sweptParams[k]),
+        ),
+        metric,
+        fee_pct: feePct / 100,
+        slippage_pct: slippagePct / 100,
+        ...period.range(),
+      });
+      return;
+    }
     onRun(
       {
         symbol,
@@ -233,29 +345,112 @@ export default function StrategyForm({
 
       {strategy && <p className="strategy-desc">{strategy.description}</p>}
 
+      <div className="field">
+        <span id="mode-label">Mode</span>
+        <div className="segmented" role="group" aria-labelledby="mode-label">
+          <button
+            type="button"
+            className={`seg-btn${mode === "backtest" ? " active" : ""}`}
+            aria-pressed={mode === "backtest"}
+            onClick={() => setMode("backtest")}
+          >
+            Single run
+          </button>
+          <button
+            type="button"
+            className={`seg-btn${mode === "optimize" ? " active" : ""}`}
+            aria-pressed={mode === "optimize"}
+            title="Sweep parameter ranges and rank every combination"
+            onClick={() => setMode("optimize")}
+          >
+            Optimize
+          </button>
+        </div>
+      </div>
+
+      {mode === "optimize" && (
+        <label className="field">
+          <span>Rank by</span>
+          <select
+            value={metric}
+            onChange={(e) => setMetric(e.target.value as OptimizeMetric)}
+          >
+            {Object.entries(METRIC_LABELS).map(([k, label]) => (
+              <option key={k} value={k}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
       {strategy &&
-        Object.entries(strategy.params).map(([key, spec]) => (
-          <label className="field slider-field" key={key}>
-            <span>
-              {spec.label}
-              <strong className="param-value">
-                {spec.type === "float"
-                  ? Number(currentParams[key]).toFixed(2)
-                  : currentParams[key]}
-              </strong>
-            </span>
-            <input
-              type="range"
-              min={spec.min}
-              max={spec.max}
-              step={spec.type === "float" ? 0.01 : 1}
-              value={currentParams[key]}
-              onChange={(e) => setParam(key, Number(e.target.value))}
-            />
-          </label>
-        ))}
+        Object.entries(strategy.params).map(([key, spec]) => {
+          const swept = mode === "optimize" && !!sweptParams[key];
+          const range = currentRanges[key];
+          return (
+            <div className="field slider-field" key={key}>
+              <span className="param-head">
+                {spec.label}
+                {mode === "optimize" ? (
+                  <label className="sweep-toggle">
+                    <input
+                      type="checkbox"
+                      checked={!!sweptParams[key]}
+                      disabled={!sweptParams[key] && sweptKeys.length >= MAX_SWEPT}
+                      onChange={() => toggleSweep(key)}
+                    />
+                    sweep
+                  </label>
+                ) : (
+                  <strong className="param-value">
+                    {spec.type === "float"
+                      ? Number(currentParams[key]).toFixed(2)
+                      : currentParams[key]}
+                  </strong>
+                )}
+                {swept && (
+                  <strong className="param-value">{rangeCount(range)} values</strong>
+                )}
+              </span>
+              {swept ? (
+                <div className="sweep-range">
+                  {(["min", "max", "step"] as const).map((f) => (
+                    <label key={f} className="sweep-input">
+                      <span>{f}</span>
+                      <input
+                        type="number"
+                        min={f === "step" ? (spec.type === "int" ? 1 : 0.01) : spec.min}
+                        max={f === "step" ? undefined : spec.max}
+                        step={spec.type === "float" ? 0.01 : 1}
+                        value={range[f]}
+                        onChange={(e) => setRange(key, { [f]: Number(e.target.value) })}
+                      />
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <input
+                  type="range"
+                  min={spec.min}
+                  max={spec.max}
+                  step={spec.type === "float" ? 0.01 : 1}
+                  value={currentParams[key]}
+                  onChange={(e) => setParam(key, Number(e.target.value))}
+                />
+              )}
+            </div>
+          );
+        })}
 
       {paramWarning && <p className="param-warning">{paramWarning}</p>}
+      {optimizeWarning && <p className="param-warning">{optimizeWarning}</p>}
+      {mode === "optimize" && !optimizeWarning && (
+        <p className="muted sweep-count">
+          Grid: {comboCount} combination{comboCount === 1 ? "" : "s"} — every one is a
+          full backtest with fees + slippage.
+        </p>
+      )}
 
       <fieldset className="cost-assumptions">
         <legend>Cost assumptions</legend>
@@ -295,11 +490,18 @@ export default function StrategyForm({
         </div>
       </fieldset>
 
-      <button type="submit" className="run-btn" disabled={busy || !strategy || !!paramWarning}>
+      <button
+        type="submit"
+        className="run-btn"
+        disabled={busy || !strategy || !!paramWarning || !!optimizeWarning}
+      >
         {busy ? (
           <>
-            <span className="btn-spinner" aria-hidden="true" /> Running…
+            <span className="btn-spinner" aria-hidden="true" />{" "}
+            {mode === "optimize" ? "Optimizing…" : "Running…"}
           </>
+        ) : mode === "optimize" ? (
+          `Optimize (${comboCount} runs)`
         ) : (
           "Run backtest"
         )}
